@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class LectureService {
@@ -34,5 +36,19 @@ public class LectureService {
             request.endDate()
         );
         return lectureRepository.save(lecture);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Lecture> findAll(LectureStatus statusFilter) {
+        if (statusFilter == null) {
+            return lectureRepository.findAllByOrderByIdDesc();
+        }
+        return lectureRepository.findAllByStatusOrderByIdDesc(statusFilter);
+    }
+
+    @Transactional(readOnly = true)
+    public Lecture findById(Long id) {
+        return lectureRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 강의: " + id));
     }
 }
