@@ -1,0 +1,38 @@
+package com.liveklass.enrollment.lecture.application;
+
+import com.liveklass.enrollment.lecture.domain.Lecture;
+import com.liveklass.enrollment.lecture.domain.LectureStatus;
+import com.liveklass.enrollment.lecture.infrastructure.LectureRepository;
+import com.liveklass.enrollment.lecture.presentation.dto.CreateLectureRequest;
+import com.liveklass.enrollment.user.domain.User;
+import com.liveklass.enrollment.user.infrastructure.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+public class LectureService {
+
+    private final LectureRepository lectureRepository;
+    private final UserRepository userRepository;
+
+    @Transactional
+    public Lecture register(Long creatorId, CreateLectureRequest request) {
+        User creator = userRepository.findById(creatorId)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자: " + creatorId));
+        if (!creator.isCreator()) {
+            throw new IllegalStateException("강의 등록 권한이 없습니다 (CREATOR 역할 필요)");
+        }
+        Lecture lecture = new Lecture(
+            creator.getId(),
+            request.title(),
+            request.description(),
+            request.price(),
+            request.capacity(),
+            request.startDate(),
+            request.endDate()
+        );
+        return lectureRepository.save(lecture);
+    }
+}
