@@ -51,4 +51,15 @@ public class LectureService {
         return lectureRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 강의: " + id));
     }
+
+    @Transactional
+    public Lecture changeStatus(Long lectureId, LectureStatus target, Long requesterId) {
+        Lecture lecture = lectureRepository.findById(lectureId)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 강의: " + lectureId));
+        if (!lecture.getCreatorId().equals(requesterId)) {
+            throw new IllegalStateException("강의 작성자만 상태를 변경할 수 있습니다");
+        }
+        lecture.changeStatus(target);
+        return lecture;
+    }
 }

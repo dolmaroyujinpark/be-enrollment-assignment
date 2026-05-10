@@ -5,10 +5,12 @@ import com.liveklass.enrollment.lecture.domain.Lecture;
 import com.liveklass.enrollment.lecture.domain.LectureStatus;
 import com.liveklass.enrollment.lecture.presentation.dto.CreateLectureRequest;
 import com.liveklass.enrollment.lecture.presentation.dto.LectureResponse;
+import com.liveklass.enrollment.lecture.presentation.dto.UpdateLectureStatusRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,5 +52,15 @@ public class LectureController {
     @GetMapping("/{id}")
     public LectureResponse detail(@PathVariable Long id) {
         return LectureResponse.from(lectureService.findById(id));
+    }
+
+    @PatchMapping("/{id}/status")
+    public LectureResponse changeStatus(
+        @PathVariable Long id,
+        @RequestHeader("X-User-Id") Long userId,
+        @Valid @RequestBody UpdateLectureStatusRequest request
+    ) {
+        Lecture lecture = lectureService.changeStatus(id, request.status(), userId);
+        return LectureResponse.from(lecture);
     }
 }
