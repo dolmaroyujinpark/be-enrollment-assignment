@@ -1,0 +1,35 @@
+# Build
+build/
+out/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Env
+.env
+.env.local
+*.local
+
+# Runtime
+hs_err_pid*
+replay_pid*
+
+# Docker volumes (if created locally)
+postgres-data/

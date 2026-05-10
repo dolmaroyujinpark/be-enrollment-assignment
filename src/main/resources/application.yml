@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: liveklass-be-assignment
+  profiles:
+    active: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/liveklass
+    username: liveklass
+    password: liveklass
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.liveklass: DEBUG
+    org.hibernate.SQL: DEBUG
