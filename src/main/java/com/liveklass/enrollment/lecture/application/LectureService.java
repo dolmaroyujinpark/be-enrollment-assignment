@@ -9,10 +9,10 @@ import com.liveklass.enrollment.lecture.presentation.dto.CreateLectureRequest;
 import com.liveklass.enrollment.user.domain.User;
 import com.liveklass.enrollment.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -41,11 +41,11 @@ public class LectureService {
     }
 
     @Transactional(readOnly = true)
-    public List<Lecture> findAll(LectureStatus statusFilter) {
+    public Page<Lecture> findAll(LectureStatus statusFilter, Pageable pageable) {
         if (statusFilter == null) {
-            return lectureRepository.findAllByOrderByIdDesc();
+            return lectureRepository.findAll(pageable);
         }
-        return lectureRepository.findAllByStatusOrderByIdDesc(statusFilter);
+        return lectureRepository.findByStatus(statusFilter, pageable);
     }
 
     @Transactional(readOnly = true)

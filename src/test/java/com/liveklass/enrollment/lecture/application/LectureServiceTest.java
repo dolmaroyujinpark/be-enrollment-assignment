@@ -15,6 +15,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -25,6 +29,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
@@ -115,29 +120,31 @@ class LectureServiceTest {
     }
 
     @Test
-    @DisplayName("status 필터가 null 이면 전체 목록을 반환")
+    @DisplayName("status 필터가 null 이면 전체 목록을 페이지로 반환")
     void findAll_noFilter_returnsAll() {
         Lecture l1 = lectureWithId(1L, 10L);
         Lecture l2 = lectureWithId(2L, 10L);
-        given(lectureRepository.findAllByOrderByIdDesc()).willReturn(List.of(l2, l1));
+        Pageable pageable = PageRequest.of(0, 20);
+        given(lectureRepository.findAll(pageable)).willReturn(new PageImpl<>(List.of(l2, l1)));
 
-        List<Lecture> result = lectureService.findAll(null);
+        Page<Lecture> result = lectureService.findAll(null, pageable);
 
-        assertThat(result).hasSize(2);
+        assertThat(result.getTotalElements()).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("status 필터가 있으면 해당 상태만 반환")
+    @DisplayName("status 필터가 있으면 해당 상태만 페이지로 반환")
     void findAll_withFilter_filtersByStatus() {
         Lecture l = lectureWithId(1L, 10L);
         l.changeStatus(LectureStatus.OPEN);
-        given(lectureRepository.findAllByStatusOrderByIdDesc(LectureStatus.OPEN))
-            .willReturn(List.of(l));
+        Pageable pageable = PageRequest.of(0, 20);
+        given(lectureRepository.findByStatus(eq(LectureStatus.OPEN), eq(pageable)))
+            .willReturn(new PageImpl<>(List.of(l)));
 
-        List<Lecture> result = lectureService.findAll(LectureStatus.OPEN);
+        Page<Lecture> result = lectureService.findAll(LectureStatus.OPEN, pageable);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getStatus()).isEqualTo(LectureStatus.OPEN);
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent().get(0).getStatus()).isEqualTo(LectureStatus.OPEN);
     }
 
     @Test

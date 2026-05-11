@@ -3,19 +3,18 @@ package com.liveklass.enrollment.lecture.infrastructure;
 import com.liveklass.enrollment.lecture.domain.Lecture;
 import com.liveklass.enrollment.lecture.domain.LectureStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface LectureRepository extends JpaRepository<Lecture, Long> {
 
-    List<Lecture> findAllByStatusOrderByIdDesc(LectureStatus status);
-
-    List<Lecture> findAllByOrderByIdDesc();
+    Page<Lecture> findByStatus(LectureStatus status, Pageable pageable);
 
     /**
      * 신청/취소 시 정원 카운터 갱신을 직렬화하기 위한 row-level 비관 락 (SELECT ... FOR UPDATE).

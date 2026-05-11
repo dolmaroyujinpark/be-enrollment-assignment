@@ -26,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/lectures")
@@ -48,12 +47,11 @@ public class LectureController {
     }
 
     @GetMapping
-    public List<LectureResponse> list(
-        @RequestParam(name = "status", required = false) LectureStatus status
+    public PageResponse<LectureResponse> list(
+        @RequestParam(name = "status", required = false) LectureStatus status,
+        @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        return lectureService.findAll(status).stream()
-            .map(LectureResponse::from)
-            .toList();
+        return PageResponse.from(lectureService.findAll(status, pageable).map(LectureResponse::from));
     }
 
     @GetMapping("/{id}")
