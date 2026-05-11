@@ -4,9 +4,11 @@ import com.liveklass.enrollment.enrollment.application.EnrollmentService;
 import com.liveklass.enrollment.enrollment.domain.Enrollment;
 import com.liveklass.enrollment.enrollment.presentation.dto.CreateEnrollmentRequest;
 import com.liveklass.enrollment.enrollment.presentation.dto.EnrollmentResponse;
+import com.liveklass.enrollment.payment.application.PaymentConfirmService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -21,6 +23,7 @@ import java.net.URI;
 public class EnrollmentController {
 
     private final EnrollmentService enrollmentService;
+    private final PaymentConfirmService paymentConfirmService;
 
     @PostMapping
     public ResponseEntity<EnrollmentResponse> apply(
@@ -31,5 +34,15 @@ public class EnrollmentController {
         return ResponseEntity
             .created(URI.create("/api/enrollments/" + enrollment.getId()))
             .body(EnrollmentResponse.from(enrollment));
+    }
+
+    @PostMapping("/{id}/payment")
+    public EnrollmentResponse confirmPayment(
+        @PathVariable Long id,
+        @RequestHeader("X-User-Id") Long userId,
+        @RequestHeader("Idempotency-Key") String idempotencyKey
+    ) {
+        Enrollment enrollment = paymentConfirmService.confirm(userId, id, idempotencyKey);
+        return EnrollmentResponse.from(enrollment);
     }
 }
