@@ -1,5 +1,7 @@
 package com.liveklass.enrollment.lecture.application;
 
+import com.liveklass.enrollment.common.exception.BusinessException;
+import com.liveklass.enrollment.common.exception.ErrorCode;
 import com.liveklass.enrollment.lecture.domain.Lecture;
 import com.liveklass.enrollment.lecture.domain.LectureStatus;
 import com.liveklass.enrollment.lecture.infrastructure.LectureRepository;
@@ -22,9 +24,9 @@ public class LectureService {
     @Transactional
     public Lecture register(Long creatorId, CreateLectureRequest request) {
         User creator = userRepository.findById(creatorId)
-            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자: " + creatorId));
+            .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "존재하지 않는 사용자: " + creatorId));
         if (!creator.isCreator()) {
-            throw new IllegalStateException("강의 등록 권한이 없습니다 (CREATOR 역할 필요)");
+            throw new BusinessException(ErrorCode.NOT_CREATOR);
         }
         Lecture lecture = new Lecture(
             creator.getId(),
@@ -49,17 +51,21 @@ public class LectureService {
     @Transactional(readOnly = true)
     public Lecture findById(Long id) {
         return lectureRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 강의: " + id));
+            .orElseThrow(() -> new BusinessException(ErrorCode.LECTURE_NOT_FOUND, "존재하지 않는 강의: " + id));
     }
 
     @Transactional
     public Lecture changeStatus(Long lectureId, LectureStatus target, Long requesterId) {
         Lecture lecture = lectureRepository.findById(lectureId)
-            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 강의: " + lectureId));
+            .orElseThrow(() -> new BusinessException(ErrorCode.LECTURE_NOT_FOUND, "존재하지 않는 강의: " + lectureId));
         if (!lecture.getCreatorId().equals(requesterId)) {
-            throw new IllegalStateException("강의 작성자만 상태를 변경할 수 있습니다");
+            throw new BusinessException(ErrorCode.NOT_LECTURE_OWNER);
         }
-        lecture.changeStatus(target);
+        try {
+            lecture.changeStatus(target);
+        } catch (IllegalStateException e) {
+            throw new BusinessException(ErrorCode.INVALID_LECTURE_STATUS_TRANSITION, e.getMessage());
+        }
         return lecture;
     }
 }

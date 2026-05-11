@@ -1,5 +1,7 @@
 package com.liveklass.enrollment.lecture.application;
 
+import com.liveklass.enrollment.common.exception.BusinessException;
+import com.liveklass.enrollment.common.exception.ErrorCode;
 import com.liveklass.enrollment.lecture.domain.Lecture;
 import com.liveklass.enrollment.lecture.domain.LectureStatus;
 import com.liveklass.enrollment.lecture.infrastructure.LectureRepository;
@@ -92,23 +94,24 @@ class LectureServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 사용자가 등록 시도 시 IllegalArgumentException")
+    @DisplayName("존재하지 않는 사용자가 등록 시도 시 USER_NOT_FOUND")
     void register_unknownUser_throws() {
         given(userRepository.findById(99L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> lectureService.register(99L, sampleRequest()))
-            .isInstanceOf(IllegalArgumentException.class);
+            .isInstanceOf(BusinessException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
     }
 
     @Test
-    @DisplayName("CLASSMATE 가 강의 등록 시도 시 IllegalStateException")
+    @DisplayName("CLASSMATE 가 강의 등록 시도 시 NOT_CREATOR")
     void register_classmate_throws() {
         User classmate = userWithId(20L, UserRole.CLASSMATE);
         given(userRepository.findById(20L)).willReturn(Optional.of(classmate));
 
         assertThatThrownBy(() -> lectureService.register(20L, sampleRequest()))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("CREATOR");
+            .isInstanceOf(BusinessException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_CREATOR);
     }
 
     @Test
@@ -138,12 +141,13 @@ class LectureServiceTest {
     }
 
     @Test
-    @DisplayName("findById 가 없으면 IllegalArgumentException")
+    @DisplayName("findById 가 없으면 LECTURE_NOT_FOUND")
     void findById_notFound_throws() {
         given(lectureRepository.findById(404L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> lectureService.findById(404L))
-            .isInstanceOf(IllegalArgumentException.class);
+            .isInstanceOf(BusinessException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.LECTURE_NOT_FOUND);
     }
 
     @Test
@@ -158,13 +162,24 @@ class LectureServiceTest {
     }
 
     @Test
-    @DisplayName("작성자가 아닌 사용자가 changeStatus 호출 시 IllegalStateException")
+    @DisplayName("작성자가 아닌 사용자가 changeStatus 호출 시 NOT_LECTURE_OWNER")
     void changeStatus_byOther_throws() {
         Lecture lecture = lectureWithId(1L, 10L);
         given(lectureRepository.findById(1L)).willReturn(Optional.of(lecture));
 
         assertThatThrownBy(() -> lectureService.changeStatus(1L, LectureStatus.OPEN, 99L))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("작성자");
+            .isInstanceOf(BusinessException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_LECTURE_OWNER);
+    }
+
+    @Test
+    @DisplayName("허용되지 않는 전이를 요청하면 INVALID_LECTURE_STATUS_TRANSITION")
+    void changeStatus_invalidTransition_throws() {
+        Lecture lecture = lectureWithId(1L, 10L); // DRAFT
+        given(lectureRepository.findById(1L)).willReturn(Optional.of(lecture));
+
+        assertThatThrownBy(() -> lectureService.changeStatus(1L, LectureStatus.CLOSED, 10L))
+            .isInstanceOf(BusinessException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_LECTURE_STATUS_TRANSITION);
     }
 }
