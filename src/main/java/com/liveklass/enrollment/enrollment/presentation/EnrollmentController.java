@@ -8,6 +8,7 @@ import com.liveklass.enrollment.payment.application.PaymentConfirmService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,6 +44,15 @@ public class EnrollmentController {
         @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
         Enrollment enrollment = paymentConfirmService.confirm(userId, id, idempotencyKey);
+        return EnrollmentResponse.from(enrollment);
+    }
+
+    @DeleteMapping("/{id}")
+    public EnrollmentResponse cancel(
+        @PathVariable Long id,
+        @RequestHeader("X-User-Id") Long userId
+    ) {
+        Enrollment enrollment = enrollmentService.cancel(userId, id);
         return EnrollmentResponse.from(enrollment);
     }
 }

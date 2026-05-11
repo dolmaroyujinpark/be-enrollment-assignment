@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 @Service
 @RequiredArgsConstructor
 public class EnrollmentService {
@@ -49,5 +51,34 @@ public class EnrollmentService {
 
         lecture.incrementEnrolled();
         return enrollmentRepository.save(new Enrollment(userId, lectureId));
+    }
+
+    /**
+     * 수강 취소 (→ CANCELLED).
+     * - 본인 신청만 취소 가능 (BR-10)
+     * - 활성 신청이 취소되면 강의 정원 카운터를 1 감소 (Lecture row 비관 락으로 직렬화)
+     * - 취소 가능 기간 제한(O1)은 선택 구현이라 여기서는 적용하지 않음 (#9 에서 도입)
+     */
+    @Transactional
+    public Enrollment cancel(Long userId, Long enrollmentId) {
+        Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.ENROLLMENT_NOT_FOUND, "존재하지 않는 수강 신청: " + enrollmentId));
+        if (!enrollment.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NOT_ENROLLMENT_OWNER);
+        }
+
+        Lecture lecture = lectureRepository.findByIdForUpdate(enrollment.getLectureId())
+            .orElseThrow(() -> new BusinessException(ErrorCode.LECTURE_NOT_FOUND, "존재하지 않는 강의: " + enrollment.getLectureId()));
+
+        boolean wasActive = enrollment.getStatus().isActive();
+        try {
+            enrollment.cancel(Instant.now());
+        } catch (IllegalStateException e) {
+            throw new BusinessException(ErrorCode.INVALID_ENROLLMENT_STATUS_TRANSITION, e.getMessage());
+        }
+        if (wasActive) {
+            lecture.decrementEnrolled();
+        }
+        return enrollment;
     }
 }

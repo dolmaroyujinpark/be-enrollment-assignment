@@ -68,12 +68,21 @@ public class Enrollment {
         this.paymentIntentId = paymentIntentId;
     }
 
+    /** 취소 기간 제한 없이 취소 (필수 동작). */
+    public void cancel(Instant now) {
+        cancel(now, null);
+    }
+
+    /**
+     * 취소. refundWindow 가 주어지면 CONFIRMED 신청은 confirmedAt + refundWindow 이내에만 취소 가능 (선택 구현).
+     * refundWindow 가 null 이면 시간 제한 없음.
+     */
     public void cancel(Instant now, Duration refundWindow) {
         if (!status.canTransitionTo(EnrollmentStatus.CANCELLED)) {
             throw new IllegalStateException(
                 "Cannot cancel enrollment in status " + status);
         }
-        if (status == EnrollmentStatus.CONFIRMED && confirmedAt != null) {
+        if (refundWindow != null && status == EnrollmentStatus.CONFIRMED && confirmedAt != null) {
             Instant deadline = confirmedAt.plus(refundWindow);
             if (now.isAfter(deadline)) {
                 throw new IllegalStateException(
