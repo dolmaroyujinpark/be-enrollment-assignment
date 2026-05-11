@@ -9,6 +9,8 @@ import com.liveklass.enrollment.lecture.domain.Lecture;
 import com.liveklass.enrollment.lecture.infrastructure.LectureRepository;
 import com.liveklass.enrollment.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,5 +82,11 @@ public class EnrollmentService {
             lecture.decrementEnrolled();
         }
         return enrollment;
+    }
+
+    /** 내 수강 신청 목록 (페이지네이션). */
+    @Transactional(readOnly = true)
+    public Page<Enrollment> findMine(Long userId, Pageable pageable) {
+        return enrollmentRepository.findByUserId(userId, pageable);
     }
 }

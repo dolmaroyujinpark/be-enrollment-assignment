@@ -1,5 +1,6 @@
 package com.liveklass.enrollment.enrollment.presentation;
 
+import com.liveklass.enrollment.common.dto.PageResponse;
 import com.liveklass.enrollment.enrollment.application.EnrollmentService;
 import com.liveklass.enrollment.enrollment.domain.Enrollment;
 import com.liveklass.enrollment.enrollment.presentation.dto.CreateEnrollmentRequest;
@@ -7,8 +8,12 @@ import com.liveklass.enrollment.enrollment.presentation.dto.EnrollmentResponse;
 import com.liveklass.enrollment.payment.application.PaymentConfirmService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -54,5 +59,13 @@ public class EnrollmentController {
     ) {
         Enrollment enrollment = enrollmentService.cancel(userId, id);
         return EnrollmentResponse.from(enrollment);
+    }
+
+    @GetMapping("/me")
+    public PageResponse<EnrollmentResponse> listMine(
+        @RequestHeader("X-User-Id") Long userId,
+        @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        return PageResponse.from(enrollmentService.findMine(userId, pageable).map(EnrollmentResponse::from));
     }
 }
