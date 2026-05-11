@@ -24,6 +24,10 @@ spring:
 server:
   port: 8080
 
+enrollment:
+  # CONFIRMED 수강 신청의 취소 가능 기간 (결제 후). 비우면 제한 없음.
+  refund-window: 7d
+
 management:
   endpoints:
     web:

@@ -16,8 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -186,6 +188,35 @@ class EnrollmentServiceTest {
             assertThatThrownBy(() -> enrollmentService.cancel(USER_ID, ENROLLMENT_ID))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_ENROLLMENT_STATUS_TRANSITION);
+        }
+
+        @Test
+        @DisplayName("[O1] CONFIRMED 신청도 결제 후 7일 이내면 취소 가능")
+        void confirmedWithinRefundWindow() {
+            ReflectionTestUtils.setField(enrollmentService, "refundWindow", Duration.ofDays(7));
+            Enrollment enrollment = new Enrollment(USER_ID, LECTURE_ID);
+            enrollment.confirm(99L, Instant.now().minus(Duration.ofDays(3)));
+            Lecture lecture = lecture(LectureStatus.OPEN, 5, 1);
+            given(enrollmentRepository.findById(ENROLLMENT_ID)).willReturn(Optional.of(enrollment));
+            given(lectureRepository.findByIdForUpdate(LECTURE_ID)).willReturn(Optional.of(lecture));
+
+            Enrollment result = enrollmentService.cancel(USER_ID, ENROLLMENT_ID);
+
+            assertThat(result.getStatus()).isEqualTo(EnrollmentStatus.CANCELLED);
+            assertThat(lecture.getEnrolledCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("[O1] CONFIRMED 신청을 결제 후 7일 경과 후 취소하면 → REFUND_WINDOW_PASSED")
+        void confirmedAfterRefundWindow() {
+            ReflectionTestUtils.setField(enrollmentService, "refundWindow", Duration.ofDays(7));
+            Enrollment enrollment = new Enrollment(USER_ID, LECTURE_ID);
+            enrollment.confirm(99L, Instant.now().minus(Duration.ofDays(8)));
+            given(enrollmentRepository.findById(ENROLLMENT_ID)).willReturn(Optional.of(enrollment));
+
+            assertThatThrownBy(() -> enrollmentService.cancel(USER_ID, ENROLLMENT_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REFUND_WINDOW_PASSED);
         }
     }
 }

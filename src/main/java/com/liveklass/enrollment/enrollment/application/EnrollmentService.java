@@ -9,11 +9,13 @@ import com.liveklass.enrollment.lecture.domain.Lecture;
 import com.liveklass.enrollment.lecture.infrastructure.LectureRepository;
 import com.liveklass.enrollment.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 
 @Service
@@ -23,6 +25,10 @@ public class EnrollmentService {
     private final EnrollmentRepository enrollmentRepository;
     private final LectureRepository lectureRepository;
     private final UserRepository userRepository;
+
+    /** CONFIRMED 신청의 취소 가능 기간 (O1). null 이면 제한 없음. application.yml 의 enrollment.refund-window 로 설정. */
+    @Value("${enrollment.refund-window:7d}")
+    private Duration refundWindow;
 
     /**
      * 수강 신청 (PENDING 생성).
@@ -58,8 +64,8 @@ public class EnrollmentService {
     /**
      * 수강 취소 (→ CANCELLED).
      * - 본인 신청만 취소 가능 (BR-10)
+     * - CONFIRMED 신청은 결제 후 refundWindow(기본 7일) 이내에만 취소 가능 (BR-6 / O1). PENDING 은 기간 제한 없음
      * - 활성 신청이 취소되면 강의 정원 카운터를 1 감소 (Lecture row 비관 락으로 직렬화)
-     * - 취소 가능 기간 제한(O1)은 선택 구현이라 여기서는 적용하지 않음 (#9 에서 도입)
      */
     @Transactional
     public Enrollment cancel(Long userId, Long enrollmentId) {
@@ -68,6 +74,7 @@ public class EnrollmentService {
         if (!enrollment.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NOT_ENROLLMENT_OWNER);
         }
+        ensureWithinRefundWindow(enrollment);
 
         Lecture lecture = lectureRepository.findByIdForUpdate(enrollment.getLectureId())
             .orElseThrow(() -> new BusinessException(ErrorCode.LECTURE_NOT_FOUND, "존재하지 않는 강의: " + enrollment.getLectureId()));
@@ -82,6 +89,19 @@ public class EnrollmentService {
             lecture.decrementEnrolled();
         }
         return enrollment;
+    }
+
+    private void ensureWithinRefundWindow(Enrollment enrollment) {
+        if (refundWindow == null
+            || enrollment.getStatus() != EnrollmentStatus.CONFIRMED
+            || enrollment.getConfirmedAt() == null) {
+            return;
+        }
+        Instant deadline = enrollment.getConfirmedAt().plus(refundWindow);
+        if (Instant.now().isAfter(deadline)) {
+            throw new BusinessException(ErrorCode.REFUND_WINDOW_PASSED,
+                "결제 후 %d일이 지나 취소할 수 없습니다.".formatted(refundWindow.toDays()));
+        }
     }
 
     /** 내 수강 신청 목록 (페이지네이션). */
