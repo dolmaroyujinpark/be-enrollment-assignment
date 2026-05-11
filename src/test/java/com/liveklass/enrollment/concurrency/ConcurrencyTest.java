@@ -44,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@Testcontainers(disabledWithoutDocker = true) // Docker 가 없으면 이 클래스 전체를 건너뜀(실패 아님)
+@Testcontainers(disabledWithoutDocker = true) // Docker(Testcontainers 연결)가 없으면 클래스 전체 건너뜀(실패 아님)
 @DisplayName("동시성 — 마지막 자리 동시 신청")
 class ConcurrencyTest {
 
