@@ -16,12 +16,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -217,6 +222,46 @@ class EnrollmentServiceTest {
             assertThatThrownBy(() -> enrollmentService.cancel(USER_ID, ENROLLMENT_ID))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REFUND_WINDOW_PASSED);
+        }
+    }
+
+    @Nested
+    @DisplayName("[O3] 강의별 수강생 목록 findByLecture")
+    class FindByLecture {
+
+        private static final long CREATOR_ID = 10L; // lecture() 헬퍼가 생성하는 강의의 creatorId
+        private final Pageable pageable = PageRequest.of(0, 20);
+
+        @Test
+        @DisplayName("강의 작성 크리에이터가 조회하면 수강생 페이지 반환")
+        void byCreator() {
+            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN, 5, 0)));
+            given(enrollmentRepository.findByLectureId(LECTURE_ID, pageable))
+                .willReturn(new PageImpl<>(List.of(new Enrollment(1L, LECTURE_ID))));
+
+            Page<Enrollment> result = enrollmentService.findByLecture(CREATOR_ID, LECTURE_ID, pageable);
+
+            assertThat(result.getTotalElements()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("작성자가 아닌 사용자가 조회하면 → NOT_LECTURE_OWNER")
+        void notCreator() {
+            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN, 5, 0)));
+
+            assertThatThrownBy(() -> enrollmentService.findByLecture(999L, LECTURE_ID, pageable))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_LECTURE_OWNER);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 강의 → LECTURE_NOT_FOUND")
+        void lectureNotFound() {
+            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> enrollmentService.findByLecture(CREATOR_ID, LECTURE_ID, pageable))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.LECTURE_NOT_FOUND);
         }
     }
 }

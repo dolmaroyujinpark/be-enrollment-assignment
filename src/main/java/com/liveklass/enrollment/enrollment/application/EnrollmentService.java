@@ -109,4 +109,15 @@ public class EnrollmentService {
     public Page<Enrollment> findMine(Long userId, Pageable pageable) {
         return enrollmentRepository.findByUserId(userId, pageable);
     }
+
+    /** 강의별 수강생 목록 (페이지네이션) — 강의 작성 크리에이터만 조회 가능 (BR-11 / O3). */
+    @Transactional(readOnly = true)
+    public Page<Enrollment> findByLecture(Long requesterId, Long lectureId, Pageable pageable) {
+        Lecture lecture = lectureRepository.findById(lectureId)
+            .orElseThrow(() -> new BusinessException(ErrorCode.LECTURE_NOT_FOUND, "존재하지 않는 강의: " + lectureId));
+        if (!lecture.getCreatorId().equals(requesterId)) {
+            throw new BusinessException(ErrorCode.NOT_LECTURE_OWNER);
+        }
+        return enrollmentRepository.findByLectureId(lectureId, pageable);
+    }
 }
