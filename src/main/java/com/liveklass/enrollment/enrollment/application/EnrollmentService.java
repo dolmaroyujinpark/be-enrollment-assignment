@@ -8,6 +8,7 @@ import com.liveklass.enrollment.enrollment.infrastructure.EnrollmentRepository;
 import com.liveklass.enrollment.lecture.domain.Lecture;
 import com.liveklass.enrollment.lecture.infrastructure.LectureRepository;
 import com.liveklass.enrollment.user.infrastructure.UserRepository;
+import com.liveklass.enrollment.waitlist.application.WaitlistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -25,6 +26,7 @@ public class EnrollmentService {
     private final EnrollmentRepository enrollmentRepository;
     private final LectureRepository lectureRepository;
     private final UserRepository userRepository;
+    private final WaitlistService waitlistService;
 
     /** CONFIRMED 신청의 취소 가능 기간 (O1). null 이면 제한 없음. application.yml 의 enrollment.refund-window 로 설정. */
     @Value("${enrollment.refund-window:7d}")
@@ -58,7 +60,9 @@ public class EnrollmentService {
         }
 
         lecture.incrementEnrolled();
-        return enrollmentRepository.save(new Enrollment(userId, lectureId));
+        Enrollment enrollment = enrollmentRepository.save(new Enrollment(userId, lectureId));
+        waitlistService.removeIfPresent(userId, lectureId); // 같은 강의의 대기열 항목이 남아있으면 제거
+        return enrollment;
     }
 
     /**
@@ -66,6 +70,7 @@ public class EnrollmentService {
      * - 본인 신청만 취소 가능 (BR-10)
      * - CONFIRMED 신청은 결제 후 refundWindow(기본 7일) 이내에만 취소 가능 (BR-6 / O1). PENDING 은 기간 제한 없음
      * - 활성 신청이 취소되면 강의 정원 카운터를 1 감소 (Lecture row 비관 락으로 직렬화)
+     * - 자리가 비면 대기열의 다음 사람을 PENDING 으로 자동 승급 (P3)
      */
     @Transactional
     public Enrollment cancel(Long userId, Long enrollmentId) {
@@ -87,6 +92,7 @@ public class EnrollmentService {
         }
         if (wasActive) {
             lecture.decrementEnrolled();
+            waitlistService.promoteNext(lecture); // 빈 자리를 대기열 head 에게 자동 배정
         }
         return enrollment;
     }

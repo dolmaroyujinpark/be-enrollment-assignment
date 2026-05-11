@@ -9,6 +9,7 @@ import com.liveklass.enrollment.lecture.domain.Lecture;
 import com.liveklass.enrollment.lecture.domain.LectureStatus;
 import com.liveklass.enrollment.lecture.infrastructure.LectureRepository;
 import com.liveklass.enrollment.user.infrastructure.UserRepository;
+import com.liveklass.enrollment.waitlist.application.WaitlistService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class EnrollmentServiceTest {
@@ -44,6 +46,7 @@ class EnrollmentServiceTest {
     @Mock EnrollmentRepository enrollmentRepository;
     @Mock LectureRepository lectureRepository;
     @Mock UserRepository userRepository;
+    @Mock WaitlistService waitlistService;
 
     @InjectMocks EnrollmentService enrollmentService;
 
@@ -159,6 +162,19 @@ class EnrollmentServiceTest {
 
             assertThat(result.getStatus()).isEqualTo(EnrollmentStatus.CANCELLED);
             assertThat(lecture.getEnrolledCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("[P3] 활성 신청 취소 시 대기열 자동 승급(promoteNext) 호출")
+        void promotesWaitlistOnCancel() {
+            Enrollment enrollment = new Enrollment(USER_ID, LECTURE_ID);
+            Lecture lecture = lecture(LectureStatus.OPEN, 5, 1);
+            given(enrollmentRepository.findById(ENROLLMENT_ID)).willReturn(Optional.of(enrollment));
+            given(lectureRepository.findByIdForUpdate(LECTURE_ID)).willReturn(Optional.of(lecture));
+
+            enrollmentService.cancel(USER_ID, ENROLLMENT_ID);
+
+            verify(waitlistService).promoteNext(lecture);
         }
 
         @Test

@@ -2,6 +2,7 @@ package com.liveklass.enrollment.waitlist.application;
 
 import com.liveklass.enrollment.common.exception.BusinessException;
 import com.liveklass.enrollment.common.exception.ErrorCode;
+import com.liveklass.enrollment.enrollment.domain.Enrollment;
 import com.liveklass.enrollment.enrollment.domain.EnrollmentStatus;
 import com.liveklass.enrollment.enrollment.infrastructure.EnrollmentRepository;
 import com.liveklass.enrollment.lecture.domain.Lecture;
@@ -14,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -56,5 +59,31 @@ public class WaitlistService {
             throw new BusinessException(ErrorCode.NOT_LECTURE_OWNER);
         }
         return waitlistRepository.findByLectureId(lectureId, pageable);
+    }
+
+    /** 신청 시 사용자의 대기열 항목 제거 (있으면) — 동일 강의에 enrollment + waitlist 가 공존하지 않도록. */
+    @Transactional
+    public void removeIfPresent(Long userId, Long lectureId) {
+        waitlistRepository.deleteByUserIdAndLectureId(userId, lectureId);
+    }
+
+    /**
+     * 한 자리가 비면 대기열의 가장 오래된(FIFO) 사람을 PENDING 신청으로 자동 승급 (P3).
+     * FOR UPDATE SKIP LOCKED 로 대기열 head 를 한 명만 안전하게 잡는다.
+     * 호출자(취소 처리)는 이미 해당 lecture row 에 비관 락을 잡은 상태여야 한다 (정원 카운터 정합).
+     */
+    @Transactional
+    public Optional<Enrollment> promoteNext(Lecture lecture) {
+        if (!lecture.hasAvailableSeat()) {
+            return Optional.empty();
+        }
+        Optional<WaitlistEntry> head = waitlistRepository.findNextInQueueForUpdate(lecture.getId());
+        if (head.isEmpty()) {
+            return Optional.empty();
+        }
+        WaitlistEntry entry = head.get();
+        waitlistRepository.delete(entry);
+        lecture.incrementEnrolled();
+        return Optional.of(enrollmentRepository.save(new Enrollment(entry.getUserId(), lecture.getId())));
     }
 }

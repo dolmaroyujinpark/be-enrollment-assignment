@@ -2,6 +2,7 @@ package com.liveklass.enrollment.waitlist.application;
 
 import com.liveklass.enrollment.common.exception.BusinessException;
 import com.liveklass.enrollment.common.exception.ErrorCode;
+import com.liveklass.enrollment.enrollment.domain.Enrollment;
 import com.liveklass.enrollment.enrollment.domain.EnrollmentStatus;
 import com.liveklass.enrollment.enrollment.infrastructure.EnrollmentRepository;
 import com.liveklass.enrollment.lecture.domain.Lecture;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -30,7 +32,10 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class WaitlistServiceTest {
@@ -47,12 +52,30 @@ class WaitlistServiceTest {
     @InjectMocks WaitlistService waitlistService;
 
     private static Lecture lecture(LectureStatus status) {
-        Lecture l = new Lecture(CREATOR_ID, "T", "D", new BigDecimal("10000"), 5,
+        return lecture(status, 5, 0);
+    }
+
+    private static Lecture lecture(LectureStatus status, int capacity, int enrolled) {
+        Lecture l = new Lecture(CREATOR_ID, "T", "D", new BigDecimal("10000"), capacity,
             LocalDate.of(2026, 6, 1), LocalDate.of(2026, 7, 1));
         if (status != LectureStatus.DRAFT) {
             l.changeStatus(LectureStatus.OPEN);
         }
+        for (int i = 0; i < enrolled; i++) {
+            l.incrementEnrolled();
+        }
+        injectId(l, LECTURE_ID);
         return l;
+    }
+
+    private static void injectId(Object entity, Long id) {
+        try {
+            Field f = entity.getClass().getDeclaredField("id");
+            f.setAccessible(true);
+            f.set(entity, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Nested
@@ -171,6 +194,55 @@ class WaitlistServiceTest {
             assertThatThrownBy(() -> waitlistService.findByLecture(CREATOR_ID, LECTURE_ID, pageable))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.LECTURE_NOT_FOUND);
+        }
+    }
+
+    @Test
+    @DisplayName("removeIfPresent 는 대기열 항목 삭제를 위임한다")
+    void removeIfPresent() {
+        waitlistService.removeIfPresent(USER_ID, LECTURE_ID);
+
+        verify(waitlistRepository).deleteByUserIdAndLectureId(USER_ID, LECTURE_ID);
+    }
+
+    @Nested
+    @DisplayName("[P3] 대기열 자동 승급 promoteNext")
+    class PromoteNext {
+
+        @Test
+        @DisplayName("자리가 있고 대기열에 사람이 있으면 head 를 PENDING 으로 승급 + 정원 카운터 +1 + 대기열 항목 삭제")
+        void promotesHead() {
+            Lecture lecture = lecture(LectureStatus.OPEN, 5, 0);
+            WaitlistEntry head = new WaitlistEntry(USER_ID, LECTURE_ID);
+            given(waitlistRepository.findNextInQueueForUpdate(LECTURE_ID)).willReturn(Optional.of(head));
+            given(enrollmentRepository.save(any(Enrollment.class))).willAnswer(inv -> inv.getArgument(0));
+
+            Optional<Enrollment> promoted = waitlistService.promoteNext(lecture);
+
+            assertThat(promoted).isPresent();
+            assertThat(promoted.get().getUserId()).isEqualTo(USER_ID);
+            assertThat(promoted.get().getStatus()).isEqualTo(EnrollmentStatus.PENDING);
+            assertThat(lecture.getEnrolledCount()).isEqualTo(1);
+            verify(waitlistRepository).delete(head);
+        }
+
+        @Test
+        @DisplayName("대기열이 비어 있으면 아무 일도 일어나지 않음")
+        void emptyQueue() {
+            Lecture lecture = lecture(LectureStatus.OPEN, 5, 0);
+            given(waitlistRepository.findNextInQueueForUpdate(LECTURE_ID)).willReturn(Optional.empty());
+
+            assertThat(waitlistService.promoteNext(lecture)).isEmpty();
+            verify(enrollmentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("빈 자리가 없으면 대기열을 조회하지도 않음")
+        void noAvailableSeat() {
+            Lecture lecture = lecture(LectureStatus.OPEN, 1, 1); // 정원 1, 1명 등록 → 자리 없음
+
+            assertThat(waitlistService.promoteNext(lecture)).isEmpty();
+            verify(waitlistRepository, never()).findNextInQueueForUpdate(anyLong());
         }
     }
 }
