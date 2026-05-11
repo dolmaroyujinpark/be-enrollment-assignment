@@ -34,5 +34,6 @@ replay_pid*
 # Docker volumes (if created locally)
 postgres-data/
 
-# AI 작업 인수인계 문서 (로컬 전용, 평가 제출물 아님)
+# AI 작업 인수인계 문서 / 로컬 도구 설정 (로컬 전용, 평가 제출물 아님)
 CLAUDE.md
+.claude/

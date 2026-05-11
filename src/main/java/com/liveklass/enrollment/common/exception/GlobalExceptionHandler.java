@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -34,6 +35,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ProblemDetail handleDataIntegrity(DataIntegrityViolationException e) {
         log.warn("데이터 무결성 제약 위반: {}", e.getMostSpecificCause().getMessage());
         return problem(HttpStatus.CONFLICT, "이미 처리되었거나 충돌하는 요청입니다.", "DATA_INTEGRITY_VIOLATION", null);
+    }
+
+    /** 낙관 락(@Version) 충돌 — 비관 락 우회 경로에서 stale write 가 감지된 경우. */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLock(ObjectOptimisticLockingFailureException e) {
+        log.warn("낙관 락 충돌: {}", e.getMessage());
+        return problem(HttpStatus.CONFLICT, "동시 수정 충돌이 발생했습니다. 다시 시도해 주세요.", "OPTIMISTIC_LOCK_CONFLICT", null);
     }
 
     /** 도메인 불변식 위반(서비스 선검증을 통과하지 못한 경우) — 안전망. */
