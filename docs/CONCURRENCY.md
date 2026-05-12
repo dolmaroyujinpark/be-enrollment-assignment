@@ -86,4 +86,4 @@ T2: 9 < 10 → INSERT enrollment; UPDATE lectures SET enrolled_count=10   -- 정
 ## 8. 검증
 - `./gradlew test --tests ConcurrencyTest` — Testcontainers 로 실제 PostgreSQL 띄워, 정원 N 강의에 M명(M>N) 동시 신청 → 정확히 N명만 `201`, 나머지 `409 CAPACITY_EXCEEDED`, 종료 후 `enrolled_count == COUNT(active) == N`. + 같은 사용자 동시 중복 신청 → active 정확히 1개.
 - `k6 run load-test/enrollment-burst.k6.js` (앱 실행 후) — 동시 부하 상황에서도 같은 성질 유지 확인.
-- 향후 확장: 다중 인스턴스로 스케일 아웃 시 분산 락(Redis Redisson 등)을 고려할 수 있으나, DB row 락만으로도 정합은 보장됨 — README "운영 고도화" 참조.
+- 향후 확장: 다중 인스턴스로 스케일 아웃 시 분산 락(Redis Redisson 등)을 고려할 수 있으나, DB row 락만으로도 정합은 보장됨 — README "미구현 / 제약사항" 참조.

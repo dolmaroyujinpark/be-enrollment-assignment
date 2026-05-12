@@ -52,7 +52,7 @@
 |---|---|---|---|
 | P1 | 결제 확정 멱등성 (`Idempotency-Key` 헤더) | 결제 재시도 안전성 | `payment_intents.idempotency_key UNIQUE` + 동일 키 → 동일 응답 반환 |
 | P2 | 명시적 FSM (도메인 메서드로 잘못된 전이 차단) | 상태 안전성 | `LectureStatus#canTransitionTo`, `EnrollmentStatus#canTransitionTo` |
-| P3 | 대기열 자동 승급 (취소 발생 시 SKIP LOCKED 기반 다음 대기자 PENDING 자동 생성) | UX | `WaitlistPromoteService` + PostgreSQL `FOR UPDATE SKIP LOCKED` |
+| P3 | 대기열 자동 승급 (취소 발생 시 SKIP LOCKED 기반 다음 대기자 PENDING 자동 생성) | UX | `WaitlistService#promoteNext` + PostgreSQL `FOR UPDATE SKIP LOCKED` |
 | P4 | 동시성 다층 방어 (PESSIMISTIC_WRITE + `@Version` + 부분 UNIQUE 인덱스) | 정합성 | `Lecture#version` + `uq_enrollments_active` |
 | P5 | K6 부하 테스트 (100 VU 동시 신청 시나리오) | 검증 | `load-test/enrollment-burst.k6.js` |
 | P6 | Testcontainers 기반 통합 테스트 (실 PostgreSQL) | 검증 | `@SpringBootTest` + `@Testcontainers` |
@@ -62,7 +62,7 @@
 | P10 | 구조화 로깅 (logback JSON + MDC traceId) | 운영 | `logstash-logback-encoder` |
 | P11 | RFC 7807 ProblemDetail 표준 에러 응답 | 표준 준수 | `GlobalExceptionHandler` + `ProblemDetail` |
 | P12 | Mermaid ERD + 시퀀스 다이어그램 README 임베드 | 문서 | `README.md`, `docs/ERD.md` |
-| P13 | ADR (Architecture Decision Records) 3건 | 의사결정 추적 | `docs/ADR/0001-..0003-*.md` |
+| P13 | 설계 결정·근거 문서화 | 의사결정 추적 / 설명 가능성 | README "설계 결정과 이유" 섹션 |
 | P14 | Spring Boot Actuator 메트릭/헬스 노출 | 운영 | `/actuator/health`, `/actuator/metrics` |
 
 ---

@@ -80,17 +80,17 @@
 - (대안) `CONFIRMED` 만 카운트 → 동시에 100명이 PENDING 만들고 결제 안 하면 강의가 사실상 마비됨
 - (선택안) Redis TTL 기반 임시 hold → 인프라 추가 부담. MVP 범위 외
 
-### BR-8. 정원 초과 시 자동 waitlist 등록  `[선택 O2]`
+### BR-8. 대기열(waitlist) — 명시적 등록 엔드포인트  `[선택 O2]`
 
-**결정**: 신청 시 정원이 다 차 있으면, 사용자에게 waitlist 등록 여부를 응답으로 알리고 자동 등록 (명시적 거부 옵션은 query param `&waitlist=false` 로 제공).
+**결정**: 정원이 찬 경우 신청 응답으로 자동 대기열 등록하는 대신, 별도 엔드포인트 `POST /api/lectures/{id}/waitlist` 로 명시적 등록한다 (OPEN 강의에 한해, 이미 active 신청이 없고 대기열에도 없을 때). 강의별 대기열 조회는 `GET /api/lectures/{id}/waitlist` (작성 크리에이터 전용).
 
-**근거**: 사용자 경험. 거부만 하면 새로 호출해야 함.
+**근거**: "신청 시 정원 초과면 자동으로 대기열 등록 + `waitlist=false` 옵트아웃"도 검토했으나, `POST /api/enrollments` 의 응답 형태가 (신청됨 / 대기 등록됨) 다형성이 되는 게 API 계약상 부담스러워, 대기열을 독립 리소스로 분리하는 편이 명확하다고 판단. 취소 발생 시 head 1명 자동 PENDING 승급은 BR-9 참조.
 
 ### BR-9. 취소 발생 시 waitlist 첫 사람에게 자동 PENDING 생성  `[추가 P3]`
 
 **결정**: 어떤 사용자가 신청을 취소하면, 동일 강의의 waitlist 에서 가장 오래된 항목(FIFO)을 찾아 자동으로 PENDING 신청 생성. 해당 사용자에게는 별도 결제 시한 부여 (현재 구현은 무기한, 운영에서는 알림 + 24시간 결제 마감 권장).
 
-**구현**: `WaitlistPromoteService` + PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` — 다중 인스턴스에서도 안전하게 한 명만 승급.
+**구현**: `WaitlistService#promoteNext` + PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` — 다중 인스턴스에서도 안전하게 한 명만 승급.
 
 ### BR-10. 신청자 본인만 자기 신청 취소 가능  `[추가 P11]`
 
@@ -111,13 +111,13 @@
 - 강의 등록은 `X-User-Id` 의 사용자가 `CREATOR` 역할이어야 함
 - 헤더 누락/위조에 대한 방어는 본 과제 범위 외
 
-**프로덕션 전환 시**: JWT 인증 + Spring Security. README "운영 고도화" 섹션 참조.
+**프로덕션 전환 시**: JWT 인증 + Spring Security. README "미구현 / 제약사항" 참조.
 
 ---
 
 ## 4. 동시성 제어 전략 요약
 
-(상세는 [docs/CONCURRENCY.md](CONCURRENCY.md) — D5 작성 예정)
+(상세는 [docs/CONCURRENCY.md](CONCURRENCY.md))
 
 4-Layer Defense:
 1. **Layer 1 — DB row-level lock**: `@Lock(PESSIMISTIC_WRITE)` on Lecture
@@ -125,7 +125,7 @@
 3. **Layer 3 — 부분 UNIQUE 인덱스**: 동일 사용자 active enrollment 1개만
 4. **Layer 4 — 멱등성**: `Idempotency-Key` 헤더로 결제 확정 재시도 안전
 
-**무신사 과제 대비 진화**: 무신사는 Python `threading.Lock` 단일 프로세스 한계. 이번엔 DB row lock 기반이라 멀티 인스턴스에서도 정합성 유지.
+**이전 유사 과제 대비 진화**: 이전에 수행한 유사 과제(Python/FastAPI)는 `threading.Lock` 기반이라 단일 프로세스 한계. 이번엔 DB row lock 기반이라 다중 인스턴스에서도 정합성 유지.
 
 ---
 
