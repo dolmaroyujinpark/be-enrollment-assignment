@@ -45,9 +45,20 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    // Testcontainers 의 Docker 연결 설정이 환경변수로 주어지면 테스트 JVM 에 그대로 전달
-    // (예: 로컬 Docker Desktop 호환 위해 DOCKER_HOST=unix://~/Library/Containers/com.docker.docker/Data/docker.raw.sock,
-    //  DOCKER_API_VERSION=1.43 등을 export 후 실행). CI(GitHub Actions) 의 기본 Docker 에서는 불필요.
+
+    // --- Testcontainers ↔ Docker 연결 호환 (특히 macOS Docker Desktop) ---
+    // 1) docker-java 가 기본으로 보내는 Docker API 버전(1.32)은 최신 Docker Desktop(min 1.40)에서 거부됨 → 고정.
+    systemProperty("api.version", "1.43")
+    // 2) 헬퍼 컨테이너(Ryuk)에 Docker 소켓을 bind-mount 할 때 쓸 소켓 경로. Docker Desktop 의 내부 데이터 디렉토리
+    //    (...Data/docker.raw.sock)는 VM 이 마운트 못 하므로 표준 경로로 강제. Linux/CI 에서도 동일 경로라 무해.
+    environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock")
+    // 3) macOS Docker Desktop: 자동 감지되는 ~/.docker/run/docker.sock 은 CLI 프록시라 docker-java 가 못 씀(빈 400 응답)
+    //    → 실제 엔진 소켓 docker.raw.sock 으로 연결. (해당 소켓이 있고 DOCKER_HOST 가 안 잡혀 있을 때만; Linux·기타 런타임엔 영향 없음)
+    if (System.getProperty("os.name").lowercase().contains("mac") && System.getenv("DOCKER_HOST") == null) {
+        val rawSock = file("${System.getProperty("user.home")}/Library/Containers/com.docker.docker/Data/docker.raw.sock")
+        if (rawSock.exists()) environment("DOCKER_HOST", "unix://${rawSock.absolutePath}")
+    }
+    // 4) 그 밖의 머신별 Docker 설정은 환경변수로 주면 테스트 JVM 에 그대로 전달.
     listOf("DOCKER_HOST", "DOCKER_API_VERSION", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "TESTCONTAINERS_RYUK_DISABLED")
         .forEach { key -> System.getenv(key)?.let { environment(key, it) } }
 }
