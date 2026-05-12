@@ -4,6 +4,8 @@ import com.liveklass.enrollment.common.dto.PageResponse;
 import com.liveklass.enrollment.waitlist.application.WaitlistService;
 import com.liveklass.enrollment.waitlist.domain.WaitlistEntry;
 import com.liveklass.enrollment.waitlist.presentation.dto.WaitlistResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "대기열", description = "강의 대기열 등록·조회")
 @RestController
 @RequestMapping("/api/lectures/{lectureId}/waitlist")
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ public class WaitlistController {
 
     private final WaitlistService waitlistService;
 
+    @Operation(summary = "대기열 등록", description = "OPEN 강의의 대기열에 등록한다. 이미 active 신청이 있거나 이미 대기 중이면 거부. (헤더 X-User-Id 필요)")
     @PostMapping
     public ResponseEntity<WaitlistResponse> join(
         @PathVariable Long lectureId,
@@ -33,7 +37,7 @@ public class WaitlistController {
         return ResponseEntity.status(HttpStatus.CREATED).body(WaitlistResponse.from(entry));
     }
 
-    /** 대기열 조회 — 강의 작성 크리에이터만 (등록 순서). */
+    @Operation(summary = "대기열 조회 (크리에이터 전용)", description = "해당 강의의 작성 크리에이터만 조회 가능. 등록 순서(FIFO). (헤더 X-User-Id 필요)")
     @GetMapping
     public PageResponse<WaitlistResponse> list(
         @PathVariable Long lectureId,
