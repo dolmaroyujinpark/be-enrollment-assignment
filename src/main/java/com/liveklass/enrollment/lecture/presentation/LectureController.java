@@ -10,6 +10,7 @@ import com.liveklass.enrollment.lecture.presentation.dto.CreateLectureRequest;
 import com.liveklass.enrollment.lecture.presentation.dto.LectureResponse;
 import com.liveklass.enrollment.lecture.presentation.dto.UpdateLectureStatusRequest;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class LectureController {
     private final EnrollmentService enrollmentService;
 
     @Operation(summary = "강의 등록", description = "CREATOR 역할 사용자가 강의를 개설한다. 초기 상태는 DRAFT. (헤더 X-User-Id 필요)")
+    @ApiResponse(responseCode = "201", description = "강의 생성 성공 (Location 헤더에 새 리소스 경로)")
     @PostMapping
     public ResponseEntity<LectureResponse> create(
         @RequestHeader("X-User-Id") Long userId,

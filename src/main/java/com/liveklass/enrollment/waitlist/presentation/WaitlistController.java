@@ -5,6 +5,7 @@ import com.liveklass.enrollment.waitlist.application.WaitlistService;
 import com.liveklass.enrollment.waitlist.domain.WaitlistEntry;
 import com.liveklass.enrollment.waitlist.presentation.dto.WaitlistResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +29,7 @@ public class WaitlistController {
     private final WaitlistService waitlistService;
 
     @Operation(summary = "대기열 등록", description = "OPEN 강의의 대기열에 등록한다. 이미 active 신청이 있거나 이미 대기 중이면 거부. (헤더 X-User-Id 필요)")
+    @ApiResponse(responseCode = "201", description = "대기열 등록 성공")
     @PostMapping
     public ResponseEntity<WaitlistResponse> join(
         @PathVariable Long lectureId,

@@ -7,6 +7,7 @@ import com.liveklass.enrollment.enrollment.presentation.dto.CreateEnrollmentRequ
 import com.liveklass.enrollment.enrollment.presentation.dto.EnrollmentResponse;
 import com.liveklass.enrollment.payment.application.PaymentConfirmService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class EnrollmentController {
     private final PaymentConfirmService paymentConfirmService;
 
     @Operation(summary = "수강 신청", description = "OPEN 강의에 신청한다(PENDING 생성). 정원 초과 시 거부, 동일 강의 중복 신청 불가. (헤더 X-User-Id 필요)")
+    @ApiResponse(responseCode = "201", description = "수강 신청 생성 성공 (Location 헤더에 새 리소스 경로)")
     @PostMapping
     public ResponseEntity<EnrollmentResponse> apply(
         @RequestHeader("X-User-Id") Long userId,
