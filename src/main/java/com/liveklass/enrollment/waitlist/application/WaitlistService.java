@@ -74,6 +74,10 @@ public class WaitlistService {
      */
     @Transactional
     public Optional<Enrollment> promoteNext(Lecture lecture) {
+        // 명세 §1 — CLOSED 는 "신청불가" 상태. 자동 승급도 신청을 만드는 행위이므로 OPEN 일 때만 허용한다.
+        if (!lecture.getStatus().isOpenForEnrollment()) {
+            return Optional.empty();
+        }
         if (!lecture.hasAvailableSeat()) {
             return Optional.empty();
         }

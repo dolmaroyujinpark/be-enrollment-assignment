@@ -61,6 +61,9 @@ class WaitlistServiceTest {
         if (status != LectureStatus.DRAFT) {
             l.changeStatus(LectureStatus.OPEN);
         }
+        if (status == LectureStatus.CLOSED) {
+            l.changeStatus(LectureStatus.CLOSED);
+        }
         for (int i = 0; i < enrolled; i++) {
             l.incrementEnrolled();
         }
@@ -243,6 +246,16 @@ class WaitlistServiceTest {
 
             assertThat(waitlistService.promoteNext(lecture)).isEmpty();
             verify(waitlistRepository, never()).findNextInQueueForUpdate(anyLong());
+        }
+
+        @Test
+        @DisplayName("[Bug #3 회귀] 강의가 CLOSED 면 자리·대기열이 있어도 자동 승급하지 않음 (명세상 CLOSED=신청불가)")
+        void closedLecture_doesNotPromote() {
+            Lecture lecture = lecture(LectureStatus.CLOSED, 5, 0);
+
+            assertThat(waitlistService.promoteNext(lecture)).isEmpty();
+            verify(waitlistRepository, never()).findNextInQueueForUpdate(anyLong());
+            verify(enrollmentRepository, never()).save(any());
         }
     }
 }
