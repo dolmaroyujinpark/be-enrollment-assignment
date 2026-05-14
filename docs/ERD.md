@@ -42,6 +42,7 @@ erDiagram
         timestamptz confirmed_at
         timestamptz cancelled_at
         bigint payment_intent_id FK
+        bigint version "@Version, 낙관 락 — 동시 cancel race 차단"
     }
 
     payment_intents {
@@ -88,7 +89,7 @@ erDiagram
 
 ### 정합성 보장
 - 신청/취소 시 `Lecture` row 에 `PESSIMISTIC_WRITE` 락 → 카운터 ±1 + INSERT/UPDATE enrollment 가 동일 트랜잭션
-- `@Version` 으로 stale write 추가 차단
+- `Lecture.@Version` 으로 락 밖 경로의 stale write 차단, `Enrollment.@Version` 으로 같은 사용자의 동시 cancel race(이중 감소) 차단
 - Sanity check 테스트 (`ConcurrencyTest`) 에서 `enrolled_count == COUNT(active enrollments)` 검증
 
 ---

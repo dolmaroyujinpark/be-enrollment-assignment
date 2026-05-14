@@ -9,18 +9,18 @@
 | 도메인 단위 | JUnit 5 | 상태 머신 전이, 생성 불변식, 정원 카운터 가드, 7일 취소 기간 경계 | `LectureTest`, `EnrollmentTest` |
 | 서비스 단위 | JUnit 5 + Mockito | 비즈니스 규칙(BR-1~11), 예외별 `ErrorCode` 매핑, 권한 검사, 대기열 자동 승급 호출 | `LectureServiceTest`, `EnrollmentServiceTest`, `PaymentConfirmServiceTest`, `WaitlistServiceTest` |
 | 필터 단위 | JUnit 5 + Mockito | 요청별 traceId 생성/재사용, MDC put·clear, 응답 헤더 세팅 | `TraceIdFilterTest` |
-| 통합 (동시성) | `@SpringBootTest` + Testcontainers (PostgreSQL 16) | 비관 락 + 부분 UNIQUE 인덱스가 실 DB 위에서 정원을 정확히 지키는지, `enrolled_count == COUNT(active)` 정합 | `ConcurrencyTest` |
+| 통합 (동시성) | `@SpringBootTest` + Testcontainers (PostgreSQL 16) | 비관 락·낙관 락·부분 UNIQUE 인덱스가 실 DB 위에서 정원·이중 감소·중복 신청을 정확히 막는지, `enrolled_count == COUNT(active)` 정합 | `ConcurrencyTest` |
 | 부하 | K6 | 동시 부하에서도 정원 수만 성공 | `load-test/enrollment-burst.k6.js` |
 
-단위·통합 테스트는 약 69개입니다. `ConcurrencyTest`(2개)는 Docker 가 없으면 skip 하며 빌드는 통과합니다(`@Testcontainers(disabledWithoutDocker = true)`).
+단위·통합 테스트는 약 70여 개입니다. `ConcurrencyTest`(3개)는 Docker 가 없으면 skip 하며 빌드는 통과합니다(`@Testcontainers(disabledWithoutDocker = true)`).
 
 ## 주요 검증 포인트
 - **FSM** — 강의 `DRAFT→OPEN→CLOSED` 단방향(역전이·단계 건너뛰기 차단), 신청 `PENDING→CONFIRMED→CANCELLED`(이미 확정/취소된 신청에 결제·취소 차단). 도메인 메서드의 `IllegalStateException` 을 서비스가 `BusinessException` 으로 래핑 → ProblemDetail 409.
-- **정원·동시성** — `ConcurrencyTest`: 정원 N 강의에 M명(M>N) 동시 신청 → 정확히 N명만 `201`, 나머지 `409 CAPACITY_EXCEEDED`, 종료 후 `enrolled_count == COUNT(active) == N`. 같은 사용자 동시 중복 신청 → active 신청 1개.
-- **멱등성** — `PaymentConfirmServiceTest`: 같은 `Idempotency-Key` 재호출 시 상태 변경 없이 동일 신청 반환, `save` 호출 없음. 다른 신청에 같은 키 → `IDEMPOTENCY_KEY_CONFLICT`.
+- **정원·동시성** — `ConcurrencyTest`: 정원 N 강의에 M명(M>N) 동시 신청 → 정확히 N명만 `201`, 나머지 `409 CAPACITY_EXCEEDED`, 종료 후 `enrolled_count == COUNT(active) == N`. 같은 사용자 동시 중복 신청 → active 신청 1개. 같은 사용자가 자기 신청을 동시에 N번 cancel → 정확히 1번만 성공·`enrolled_count` 이중 감소 없음(`Enrollment.@Version`).
+- **멱등성·정보 노출** — `PaymentConfirmServiceTest`: 같은 `Idempotency-Key` 재호출 시 상태 변경 없이 동일 신청 반환, `save` 호출 없음. 다른 신청에 같은 키 → `IDEMPOTENCY_KEY_CONFLICT`. 같은 enrollment/같은 키로 다른 사용자가 리플레이 → `NOT_ENROLLMENT_OWNER` (타 사용자 enrollment 응답 노출 차단).
 - **7일 취소 제한** — `EnrollmentServiceTest`: `confirmedAt + 7d` 이내면 취소 성공, 경과면 `REFUND_WINDOW_PASSED`. PENDING 은 제한 없음.
 - **권한** — 작성자 아닌데 상태 전이/수강생 조회 → `NOT_LECTURE_OWNER`. 본인 아닌 신청 결제/취소 → `NOT_ENROLLMENT_OWNER`. CLASSMATE 가 강의 등록 → `NOT_CREATOR`.
-- **대기열** — `WaitlistServiceTest`: 등록 거부 케이스(OPEN 아님/이미 신청함/이미 대기 중), 자동 승급(`promoteNext` — 자리 있고 head 있으면 PENDING 생성 + `enrolled_count` +1 + 항목 삭제 / 빈 대기열·자리 없음이면 no-op). `EnrollmentServiceTest`: 취소 시 `promoteNext` 호출 검증.
+- **대기열** — `WaitlistServiceTest`: 등록 거부 케이스(OPEN 아님/이미 신청함/이미 대기 중), 자동 승급(`promoteNext` — OPEN·자리 있고 head 있으면 PENDING 생성 + `enrolled_count` +1 + 항목 삭제 / OPEN 아님·빈 대기열·자리 없음이면 no-op). `EnrollmentServiceTest`: 취소 시 `promoteNext` 호출 검증.
 
 ## 의도적으로 안 한 것
 - 컨트롤러 MockMvc 테스트 — 컨트롤러가 헤더/바디 → 서비스 호출 → DTO 변환만 하는 얇은 pass-through 라, 서비스·도메인 단위 + 통합 테스트로 핵심이 커버됩니다. 여력이 있으면 `@WebMvcTest` 로 에러 응답 포맷(ProblemDetail) 검증을 추가할 수 있습니다.

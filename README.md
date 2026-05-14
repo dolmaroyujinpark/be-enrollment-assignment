@@ -164,6 +164,7 @@ erDiagram
         bigint lecture_id FK
         varchar status "PENDING|CONFIRMED|CANCELLED"
         bigint payment_intent_id FK
+        bigint version "낙관 락(@Version) — 동시 취소 race 차단"
     }
     payment_intents {
         bigint id PK
@@ -214,8 +215,8 @@ sequenceDiagram
 ```
 
 **4-Layer 방어**
-1. **비관 락** — `SELECT … FOR UPDATE` on `Lecture` row → 신청 처리 직렬화
-2. **`@Version` 낙관 락** — 락 밖 경로의 stale write 차단 (→ `OPTIMISTIC_LOCK_CONFLICT` 409)
+1. **비관 락** — `SELECT … FOR UPDATE` on `Lecture` row → 정원 갱신 직렬화
+2. **`@Version` 낙관 락** — `Lecture` 의 락 밖 경로(`changeStatus`) 와 `Enrollment` 의 동시 취소 race 에서 stale write 차단 (→ `OPTIMISTIC_LOCK_CONFLICT` 409)
 3. **부분 UNIQUE 인덱스** — 동일 강의 중복 신청 차단 (→ `DATA_INTEGRITY_VIOLATION` 409)
 4. **`Idempotency-Key` UNIQUE** — 결제 중복 호출 차단
 
@@ -259,7 +260,7 @@ sequenceDiagram
 ./gradlew test --tests "com.liveklass.enrollment.concurrency.ConcurrencyTest"  # 동시성만 (Docker 필요)
 k6 run load-test/enrollment-burst.k6.js                     # 부하 (앱 실행 후, k6 설치 필요)
 ```
-- 단위/통합 테스트 약 69개가 통과합니다. `ConcurrencyTest` 는 Docker 가 없으면 skip 하며 빌드는 통과합니다.
+- 단위/통합 테스트 70여 개가 통과합니다. `ConcurrencyTest` 3개는 Docker 가 없으면 skip 하며 빌드는 통과합니다.
 - 리포트는 `build/reports/tests/test/index.html` 에 생성됩니다. CI 는 push 마다 GitHub Actions 가 `./gradlew build` 를 실행합니다.
 - 테스트 레이어와 검증 포인트 상세는 [docs/TEST.md](docs/TEST.md) 에 있습니다.
 - macOS Docker Desktop 에서의 Testcontainers 연결 설정은 `build.gradle.kts` 의 테스트 태스크에 포함돼 있어 추가 설정 없이 동작합니다(Linux/CI 에는 영향이 없습니다).
@@ -303,7 +304,7 @@ liveklass-be-assignment/
 │   ├── common/ (exception, dto, logging, health)
 │   ├── lecture/ · enrollment/ · payment/ · waitlist/ · user/   # 각 domain / application / infrastructure / presentation
 │   └── seed/SeedRunner.java
-├── src/main/resources/ (application.yml · logback-spring.xml · db/migration/V1__init.sql)
+├── src/main/resources/ (application.yml · logback-spring.xml · db/migration/V1__init.sql · V2__enrollment_version.sql)
 └── src/test/java/com/liveklass/enrollment/
     ├── concurrency/ConcurrencyTest.java                 # @SpringBootTest + Testcontainers
     └── …/ (도메인·서비스·필터 단위 테스트)

@@ -88,9 +88,9 @@
 
 ### BR-9. 취소 발생 시 waitlist 첫 사람에게 자동 PENDING 생성  `[추가 P3]`
 
-**결정**: 어떤 사용자가 신청을 취소하면, 동일 강의의 waitlist 에서 가장 오래된 항목(FIFO)을 찾아 자동으로 PENDING 신청 생성. 해당 사용자에게는 별도 결제 시한 부여 (현재 구현은 무기한, 운영에서는 알림 + 24시간 결제 마감 권장).
+**결정**: 어떤 사용자가 신청을 취소하면, 동일 강의의 waitlist 에서 가장 오래된 항목(FIFO)을 찾아 자동으로 PENDING 신청 생성. 단 강의가 OPEN 상태일 때만 — CLOSED 는 명세상 "신청불가" 라 자동 승급도 차단. 해당 사용자에게는 별도 결제 시한 부여 (현재 구현은 무기한, 운영에서는 알림 + 24시간 결제 마감 권장).
 
-**구현**: `WaitlistService#promoteNext` + PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` — 다중 인스턴스에서도 안전하게 한 명만 승급.
+**구현**: `WaitlistService#promoteNext` + PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` — 다중 인스턴스에서도 안전하게 한 명만 승급. 진입부에 `lecture.status == OPEN` 가드.
 
 ### BR-10. 신청자 본인만 자기 신청 취소 가능  `[추가 P11]`
 
@@ -120,10 +120,10 @@
 (상세는 [docs/CONCURRENCY.md](CONCURRENCY.md))
 
 4-Layer Defense:
-1. **Layer 1 — DB row-level lock**: `@Lock(PESSIMISTIC_WRITE)` on Lecture
-2. **Layer 2 — 낙관 락**: `@Version` on Lecture
+1. **Layer 1 — DB row-level lock**: `@Lock(PESSIMISTIC_WRITE)` on Lecture — 정원 갱신 직렬화
+2. **Layer 2 — 낙관 락**: `@Version` on Lecture (락 밖 경로의 stale write 차단) · on Enrollment (같은 사용자 동시 cancel 시 `enrolled_count` 이중 감소 차단)
 3. **Layer 3 — 부분 UNIQUE 인덱스**: 동일 사용자 active enrollment 1개만
-4. **Layer 4 — 멱등성**: `Idempotency-Key` 헤더로 결제 확정 재시도 안전
+4. **Layer 4 — 멱등성**: `Idempotency-Key` 헤더 + 리플레이 경로 본인 검증 — 결제 재시도 안전 + 키 추측 시 정보 노출 차단
 
 **이전 유사 과제 대비 진화**: 이전에 수행한 유사 과제(Python/FastAPI)는 `threading.Lock` 기반이라 단일 프로세스 한계. 이번엔 DB row lock 기반이라 다중 인스턴스에서도 정합성 유지.
 

@@ -18,9 +18,9 @@ T2: 9 < 10 → INSERT enrollment; enrolled_count=10   -- 정원 초과 (11명)
 | Layer | 방법 | 막는 것 | 코드 |
 |---|---|---|---|
 | 1. 비관 락 | 신청/취소 시 `Lecture` row 에 `SELECT … FOR UPDATE` | 같은 강의의 정원 갱신을 직렬화 → 정확히 정원 수만 성공 | `LectureRepository.findByIdForUpdate` (`@Lock(PESSIMISTIC_WRITE)`) |
-| 2. 낙관 락 | `lectures.version` (`@Version`) | 비관 락 밖 경로(마이그레이션·어드민 SQL·버그)의 stale write → 커밋 시 충돌 | `Lecture.version` → `OPTIMISTIC_LOCK_CONFLICT` 409 |
+| 2. 낙관 락 | `lectures.version` / `enrollments.version` (`@Version`) | (a) `Lecture` 의 비관 락 밖 경로(`changeStatus` 등) stale write (b) 같은 사용자의 같은 enrollment 동시 cancel 시 두 번째 트랜잭션이 PENDING 캐시를 들고 통과해 `enrolled_count` 가 이중 감소하는 race | `Lecture.version`, `Enrollment.version` → `OPTIMISTIC_LOCK_CONFLICT` 409 |
 | 3. 부분 UNIQUE 인덱스 | `UNIQUE (user_id, lecture_id) WHERE status <> 'CANCELLED'` | 동일 사용자·동일 강의에 active 신청 2개 → 서비스 선검사를 경합으로 통과해도 DB 가 차단 | `V1__init.sql`, 서비스의 `existsByUserIdAndLectureIdAndStatusNot(…, CANCELLED)` 선검사 → `DATA_INTEGRITY_VIOLATION` 409 |
-| 4. 멱등성 | `payment_intents.idempotency_key UNIQUE` | 결제 중복 호출이 두 번 처리되는 것 | `PaymentConfirmService.confirm` |
+| 4. 멱등성 | `payment_intents.idempotency_key UNIQUE` + 리플레이 경로 본인 검증 | 결제 중복 호출이 두 번 처리되는 것 + 멱등키 추측 시 타 사용자 enrollment 응답이 유출되는 정보 노출 | `PaymentConfirmService.confirm` (정상 경로·리플레이 경로 둘 다 `enrollment.userId` 검증) |
 
 비관 락이 정상 동작하면 2~3은 발동할 일이 없지만, 락 범위 밖 경로/버그를 DB 제약이 끝까지 막습니다(defense in depth).
 
@@ -49,6 +49,7 @@ T2: 9 < 10 → INSERT enrollment; enrolled_count=10   -- 정원 초과 (11명)
 5. enrollment.cancel(now)                       // → CANCELLED (이미 CANCELLED 면 INVALID_ENROLLMENT_STATUS_TRANSITION 409)
 6. lecture.decrementEnrolled()
 7. waitlistService.promoteNext(lecture):
+   - lecture.status != OPEN 이면 종료 (CLOSED 는 명세상 "신청불가" — 자동 승급도 신청을 만들므로 동일하게 차단)
    - hasAvailableSeat() 아니면 종료
    - findNextInQueueForUpdate(lectureId)        // ← ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
    - 있으면: waitlist 항목 삭제 → incrementEnrolled() → 새 Enrollment(PENDING) 생성
@@ -78,6 +79,9 @@ T2: 9 < 10 → INSERT enrollment; enrolled_count=10   -- 정원 초과 (11명)
 | 카운터 정합 | 보호는 했으나 입증 약함 | 비관 락 + `@Version` + `enrolled_count == COUNT(active)` sanity check |
 
 ## 8. 검증
-- `./gradlew test --tests ConcurrencyTest` — Testcontainers 로 실 PostgreSQL 을 띄워, 정원 N 강의에 M명(M>N) 동시 신청 → 정확히 N명만 `201`, 나머지 `409 CAPACITY_EXCEEDED`, 종료 후 `enrolled_count == COUNT(active) == N`. 같은 사용자 동시 중복 신청 → active 정확히 1개. (Docker 가 없으면 이 테스트만 skip, 빌드는 통과.)
+- `./gradlew test --tests ConcurrencyTest` — Testcontainers 로 실 PostgreSQL 을 띄워 다음 3 시나리오 검증. (Docker 가 없으면 이 테스트만 skip, 빌드는 통과.)
+  - 정원 N 강의에 M명(M>N) 동시 신청 → 정확히 N명만 `201`, 나머지 `409 CAPACITY_EXCEEDED`, 종료 후 `enrolled_count == COUNT(active) == N`
+  - 같은 사용자가 동시에 같은 강의에 여러 번 신청 → active 정확히 1개
+  - 같은 사용자가 자기 신청을 동시에 N번 cancel → 정확히 1번만 성공, `enrolled_count` 이중 감소 없음 (Enrollment `@Version` 검증)
 - `k6 run load-test/enrollment-burst.k6.js` (앱 실행 후) — 동시 부하에서도 같은 성질 유지 확인.
 - 다중 인스턴스로 스케일 아웃 시 분산 락(Redis Redisson 등)을 검토할 수 있으나, DB row 락만으로도 정합은 보장됩니다(README "미구현 / 제약사항" 참조).

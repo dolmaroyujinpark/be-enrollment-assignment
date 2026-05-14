@@ -180,7 +180,7 @@ curl -X POST http://localhost:8080/api/enrollments/101/payment \
 { "id": 101, "userId": 6, "lectureId": 4, "status": "CONFIRMED",
   "appliedAt": "2026-06-01T00:00:00Z", "confirmedAt": "2026-06-01T00:05:00Z", "cancelledAt": null, "paymentIntentId": 1 }
 ```
-에러: `409 INVALID_ENROLLMENT_STATUS_TRANSITION` (PENDING 아닌 신청에 결제), `409 IDEMPOTENCY_KEY_CONFLICT` (같은 키를 다른 신청에 사용), `403 NOT_ENROLLMENT_OWNER`, `404 ENROLLMENT_NOT_FOUND`, `400` (`Idempotency-Key` 헤더 누락).
+에러: `409 INVALID_ENROLLMENT_STATUS_TRANSITION` (PENDING 아닌 신청에 결제), `409 IDEMPOTENCY_KEY_CONFLICT` (같은 키를 다른 신청에 사용), `403 NOT_ENROLLMENT_OWNER` (본인 신청 아님 — 정상 호출 및 같은 키 리플레이 양쪽에서 검사), `404 ENROLLMENT_NOT_FOUND`, `400` (`Idempotency-Key` 헤더 누락).
 
 ---
 

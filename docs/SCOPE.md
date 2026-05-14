@@ -38,12 +38,12 @@
 
 | 항목 | 명세와의 관계 | 코드 |
 |---|---|---|
-| 동시성 다층 방어 (비관 락 + `@Version` + 부분 UNIQUE 인덱스) | "동시 신청을 고려" 를 실제로 보장 | `findByIdForUpdate`, `Lecture#version`, `uq_enrollments_active`, `GlobalExceptionHandler`(`OPTIMISTIC_LOCK_CONFLICT`/`DATA_INTEGRITY_VIOLATION`) |
+| 동시성 다층 방어 (비관 락 + `@Version` + 부분 UNIQUE 인덱스) | "동시 신청을 고려" 를 실제로 보장. 정원 경쟁뿐 아니라 같은 사용자의 동시 cancel race 도 차단 | `findByIdForUpdate`, `Lecture#version`, `Enrollment#version`, `uq_enrollments_active`, `GlobalExceptionHandler`(`OPTIMISTIC_LOCK_CONFLICT`/`DATA_INTEGRITY_VIOLATION`) |
 | 결제 멱등성 (`Idempotency-Key` 헤더 + `payment_intents.idempotency_key` UNIQUE) | "결제 확정" 이 재시도에 안전해야 함 | `PaymentConfirmService#confirm`, `EnrollmentController#confirmPayment` |
 | 명시적 상태 머신 — 잘못된 전이를 도메인에서 차단 | 명세의 상태 모델이 깨지지 않게 | `Lecture#changeStatus`, `Enrollment#confirm/cancel`, `*Status#canTransitionTo` → `INVALID_*_STATUS_TRANSITION` 409 |
 | 동일 강의 중복 신청 방지 (취소 후 재신청은 허용) | 같은 사람이 같은 강의 두 번 신청 못 하게 | 부분 UNIQUE 인덱스 + `EnrollmentService#apply` 선검사(`DUPLICATE_ENROLLMENT`) |
 | 권한 검사 — 본인만 자기 신청 취소, 강의 작성 크리에이터만 상태 전이·수강생/대기열 조회 | 인가 | `EnrollmentService#cancel`/`confirm`(`NOT_ENROLLMENT_OWNER`), `LectureService#changeStatus`·`findByLecture`(`NOT_LECTURE_OWNER`), `register`(`NOT_CREATOR`) |
-| 대기열 자동 승급 — 취소 시 FIFO head 1명 자동 PENDING (`FOR UPDATE SKIP LOCKED`) | [선택] 대기열의 자연스러운 동작 | `WaitlistService#promoteNext`, `WaitlistRepository#findNextInQueueForUpdate` |
+| 대기열 자동 승급 — 취소 시 FIFO head 1명 자동 PENDING (`FOR UPDATE SKIP LOCKED`) — OPEN 강의에 한함 | [선택] 대기열의 자연스러운 동작 + CLOSED 강의는 "신청불가" 라 자동 승급도 차단 | `WaitlistService#promoteNext`(상태 가드 포함), `WaitlistRepository#findNextInQueueForUpdate` |
 | 일관된 에러 응답 — RFC 7807 `application/problem+json` + `code` 식별자 | API 면 에러 포맷이 일관돼야 | `GlobalExceptionHandler`, `ErrorCode`, `BusinessException` |
 | 강의 목록 페이지네이션 | 명세는 "신청 내역" 만 명시했으나 목록이 커지면 필요 | `LectureController#list` (`Pageable`/`PageResponse`) |
 
