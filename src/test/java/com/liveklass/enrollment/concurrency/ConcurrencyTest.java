@@ -132,6 +132,53 @@ class ConcurrencyTest {
     }
 
     @Test
+    @DisplayName("[Bug #1 회귀] 같은 사용자가 자기 신청을 동시에 두 번 cancel 해도 lecture.enrolled_count 가 두 번 깎이지 않는다")
+    void sameUserConcurrentCancel_doesNotDoubleDecrement() throws InterruptedException {
+        // given — 학생 2명이 신청해서 enrolled_count = 2
+        Long victimUserId = classmateIds.get(0);
+        Long otherUserId = classmateIds.get(1);
+        Enrollment victim = enrollmentService.apply(victimUserId, lectureId);
+        enrollmentService.apply(otherUserId, lectureId);
+        assertThat(lectureRepository.findById(lectureId).orElseThrow().getEnrolledCount()).isEqualTo(2);
+
+        // when — victim 이 자기 신청을 동시에 N 번 cancel 시도 (더블클릭 시뮬레이션)
+        int attempts = 10;
+        ExecutorService pool = Executors.newFixedThreadPool(attempts);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(attempts);
+        AtomicInteger success = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        for (int i = 0; i < attempts; i++) {
+            pool.submit(() -> {
+                try {
+                    start.await();
+                    enrollmentService.cancel(victimUserId, victim.getId());
+                    success.incrementAndGet();
+                } catch (Exception e) {
+                    // 두 번째 이후는 OptimisticLockingFailure 또는 INVALID_TRANSITION 으로 거부되어야 함 — 둘 다 정상
+                    rejected.incrementAndGet();
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+        start.countDown();
+        assertThat(done.await(30, TimeUnit.SECONDS)).isTrue();
+        pool.shutdown();
+
+        // then — 정확히 한 번만 성공, 나머지는 거부, enrolled_count 는 정확히 1 (남은 user 1명)
+        assertThat(success.get()).isEqualTo(1);
+        assertThat(rejected.get()).isEqualTo(attempts - 1);
+        Lecture lecture = lectureRepository.findById(lectureId).orElseThrow();
+        long activeCount = enrollmentRepository.findByLectureId(lectureId, Pageable.unpaged()).getContent().stream()
+            .filter(e -> e.getStatus().isActive())
+            .count();
+        assertThat(lecture.getEnrolledCount()).isEqualTo(1);
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("같은 사용자가 동시에 같은 강의에 여러 번 신청해도 active 신청은 정확히 1개")
     void sameUserConcurrentApplyDeduplicated() throws InterruptedException {
         Long userId = classmateIds.get(0);
