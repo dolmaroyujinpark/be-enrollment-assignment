@@ -1,6 +1,6 @@
 # 테스트 전략
 
-명세상 BE 과제는 테스트 코드가 필수입니다. 빠른 단위 테스트로 도메인 규칙과 비즈니스 로직을, 실 DB 통합 테스트로 락/제약처럼 DB 동작이 본질인 것을, 부하 테스트로 동시 경합 상황을 검증합니다.
+단위 = 빠른 도메인/서비스 검증, 통합 = 실 PG 위에서 락·제약, 부하 = 동시 경합.
 
 ## 레이어
 
@@ -14,13 +14,16 @@
 
 단위·통합 테스트는 74개 (단위 71 + `ConcurrencyTest` 3) 입니다. `ConcurrencyTest` 는 Docker 가 없으면 skip 하며 빌드는 통과합니다(`@Testcontainers(disabledWithoutDocker = true)`).
 
-## 주요 검증 포인트
-- **FSM** — 강의 `DRAFT→OPEN→CLOSED` 단방향(역전이·단계 건너뛰기 차단), 신청 `PENDING→CONFIRMED→CANCELLED`(이미 확정/취소된 신청에 결제·취소 차단). 도메인 메서드의 `IllegalStateException` 을 서비스가 `BusinessException` 으로 래핑 → ProblemDetail 409.
-- **정원·동시성** — `ConcurrencyTest`: 정원 N 강의에 M명(M>N) 동시 신청 → 정확히 N명만 `201`, 나머지 `409 CAPACITY_EXCEEDED`, 종료 후 `enrolled_count == COUNT(active) == N`. 같은 사용자 동시 중복 신청 → active 신청 1개. 같은 사용자가 자기 신청을 동시에 N번 cancel → 정확히 1번만 성공·`enrolled_count` 이중 감소 없음(`Enrollment.@Version`).
-- **멱등성·정보 노출** — `PaymentConfirmServiceTest`: 같은 `Idempotency-Key` 재호출 시 상태 변경 없이 동일 신청 반환, `save` 호출 없음. 다른 신청에 같은 키 → `IDEMPOTENCY_KEY_CONFLICT`. 같은 enrollment/같은 키로 다른 사용자가 리플레이 → `NOT_ENROLLMENT_OWNER` (타 사용자 enrollment 응답 노출 차단).
-- **7일 취소 제한** — `EnrollmentServiceTest`: `confirmedAt + 7d` 이내면 취소 성공, 경과면 `REFUND_WINDOW_PASSED`. PENDING 은 제한 없음.
-- **권한** — 작성자 아닌데 상태 전이/수강생 조회 → `NOT_LECTURE_OWNER`. 본인 아닌 신청 결제/취소 → `NOT_ENROLLMENT_OWNER`. CLASSMATE 가 강의 등록 → `NOT_CREATOR`.
-- **대기열** — `WaitlistServiceTest`: 만석 강의에서만 등록 성공, 자리가 남아있으면 `WAITLIST_NOT_NEEDED` 로 거부, 그 외 거부 케이스(OPEN 아님/이미 신청함/이미 대기 중). 자동 승급(`promoteNext` — OPEN·자리 있고 head 있으면 PENDING 생성 + `enrolled_count` +1 + 항목 삭제 / OPEN 아님·빈 대기열·자리 없음이면 no-op). `EnrollmentServiceTest`: 취소 시 `promoteNext` 호출 검증.
+## 검증 포인트
+
+| 영역 | 케이스 |
+|---|---|
+| FSM | 강의 `DRAFT→OPEN→CLOSED` 단방향 · 신청 `PENDING→CONFIRMED→CANCELLED` · 잘못된 전이 → 409 |
+| 정원·동시성 | 정원 N + M명 동시 신청 → N명만 성공 · 같은 사용자 동시 신청 → 1건 · 같은 사용자 동시 cancel → 1건 (`@Version`) · `enrolled_count == COUNT(active)` |
+| 멱등성·정보 노출 | 같은 키 재호출 → 동일 응답 · 다른 신청에 같은 키 → `IDEMPOTENCY_KEY_CONFLICT` · 같은 키로 다른 사용자 리플레이 → `NOT_ENROLLMENT_OWNER` · 빈/공백 키 → 400 |
+| 7일 취소 제한 | `confirmedAt + 7d` 이내 성공 · 경과 → `REFUND_WINDOW_PASSED` · PENDING 무제한 |
+| 권한 | `NOT_LECTURE_OWNER` · `NOT_ENROLLMENT_OWNER` · `NOT_CREATOR` |
+| 대기열 | 만석에서만 등록 · 자리 남으면 `WAITLIST_NOT_NEEDED` · 자동 승급은 OPEN·자리·head 있을 때만 |
 
 ## 시드 데이터 격리
 - 단위 테스트는 데모 시드를 사용하지 않습니다.

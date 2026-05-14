@@ -1,141 +1,39 @@
-# 요구사항 분석 및 설계 결정
+# 요구사항 해석 및 설계 결정
 
-## 1. 명세 요약
+명세에 명시되지 않았지만 시스템 구현에 필요한 결정 11건. 각 항목은 "결정 + 한 줄 이유 + 구현 위치".
 
-라이브 클래스의 BE-A 수강 신청 시스템은 다음 도메인 흐름을 다룹니다:
+## 도메인 흐름
 
 ```
-크리에이터 ──[강의 개설]──> Lecture (DRAFT)
-                              │
-                              └──[OPEN 전이]──> 수강 신청 가능
-                                                  │
-클래스메이트 ──[수강 신청]──> Enrollment (PENDING)
-                                  │
-                                  └──[결제 확정]──> CONFIRMED
-                                                       │
-                                                       └──[7일 내 취소]──> CANCELLED
+크리에이터 ─[등록]→ Lecture(DRAFT) ─[OPEN]→ 신청 가능
+                                            │
+수강생 ─[신청]→ Enrollment(PENDING) ─[결제]→ CONFIRMED ─[7일 내]→ CANCELLED
 ```
 
-자세한 분류는 [docs/SCOPE.md](SCOPE.md) 참조.
+## 비즈니스 규칙 (BR-1 ~ BR-11)
 
----
+| # | 규칙 | 이유 | 구현 |
+|---|---|---|---|
+| BR-1 | 강의 신청은 **OPEN 상태만** | DRAFT/CLOSED 는 명세상 "신청 불가" | `EnrollmentService.apply` — `LectureStatus.isOpenForEnrollment()` 가드 → `LECTURE_NOT_OPEN 422` |
+| BR-2 | 강의 상태는 **단방향 전이** (DRAFT→OPEN→CLOSED) | 명세 화살표가 단방향. 재오픈 허용 시 정원 일관성 깨짐 | `LectureStatus.canTransitionTo` FSM |
+| BR-3 | 동일 사용자 active 신청은 **1개**, CANCELLED 후 재신청 가능 | UX 자연스러움 | `uq_enrollments_active` 부분 UNIQUE 인덱스 |
+| BR-4 | 결제 확정은 **PENDING 에서만** | 명세 FSM. 멱등성은 BR 외 — `IDEMPOTENCY_KEY` 헤더 + UNIQUE | `PaymentConfirmService.confirm` |
+| BR-5 | 취소는 **PENDING / CONFIRMED 에서만** | 명세 FSM. CANCELLED 재취소 불가 | `EnrollmentStatus.canTransitionTo` |
+| BR-6 | CONFIRMED 후 **7일 이내만** 취소, PENDING 은 제한 없음 | 명세 선택 구현 예시. 기간은 `enrollment.refund-window` 설정값 | `EnrollmentService.ensureWithinRefundWindow` → `REFUND_WINDOW_PASSED 409` |
+| BR-7 | 정원 = **활성(PENDING+CONFIRMED) 신청 수** | 결제 직전 사용자도 자리 점유로 봐야 공정. 무한 PENDING 방지는 별도 정책 (미구현) | `lectures.enrolled_count` 비정규화 카운터 |
+| BR-8 | 대기열은 **만석일 때만** 명시적 등록 (`POST /api/lectures/{id}/waitlist`), 자리 남으면 거부 | 자리 남았는데 대기열 등록은 사용자 의도와 어긋남. 응답 다형성도 회피 | `WaitlistService.join` — `hasAvailableSeat()` 가드 → `WAITLIST_NOT_NEEDED 409` |
+| BR-9 | 취소 발생 시 대기열 head 1명 자동 PENDING 승급 (**OPEN 강의만**) | 자연스러운 대기열 동작. CLOSED 는 "신청불가" 라 자동 승급도 차단 | `WaitlistService.promoteNext` + `FOR UPDATE SKIP LOCKED` |
+| BR-10 | 신청 본인만 자기 신청 결제·취소 | 인가 | `enrollment.userId == 헤더 userId` → `NOT_ENROLLMENT_OWNER 403` |
+| BR-11 | 강의별 수강생/대기열 조회는 **작성 크리에이터만** | 인가 | `lecture.creatorId == 헤더 userId` → `NOT_LECTURE_OWNER 403` |
 
-## 2. 비즈니스 규칙 결정사항
+## 인증·인가
 
-명세에 명시되지 않았으나 시스템 구현에 필수적인 결정 11건. 각 결정에는 근거와 대안 검토 결과가 포함됩니다.
+- `X-User-Id` 헤더로 사용자 식별 (명세 허용 — JWT/세션 미구현)
+- 상태 변경·권한 조회 API 에 헤더 필수
+- 강의 등록은 `CREATOR` 역할 검사
+- 헤더 위조 방어는 본 과제 범위 외
 
-### BR-1. 강의 신청 가능 상태 = OPEN 전용  `[필수 F5]`
+## 관련 문서
 
-**결정**: 강의가 `OPEN` 상태일 때만 신청 가능. `DRAFT` / `CLOSED` 는 모두 거부 (HTTP 422).
-
-**근거**: 명세에서 "DRAFT: 신청 불가, CLOSED: 모집 마감(신청 불가)" 명시.
-
-### BR-2. 강의 상태 단방향 전이  `[필수 F2]`
-
-**결정**:
-- `DRAFT → OPEN` 만 허용
-- `OPEN → CLOSED` 만 허용
-- `CLOSED → ?` 모두 불가 (재오픈 불가)
-- `OPEN → DRAFT` 불가
-
-**근거**: 명세의 화살표 표기(`DRAFT → OPEN → CLOSED`) 가 단방향임을 시사. 재오픈을 허용하면 신청자가 이미 있는 강의가 다시 DRAFT 가 되는 비정상 상태가 가능.
-
-**구현**: `LectureStatus#canTransitionTo` 메서드로 전이 가능 여부 명시. 잘못된 전이 시 `IllegalStateException`.
-
-### BR-3. 동일 강의 동일 사용자 active 신청 1개  `[추가 P4]`
-
-**결정**: 같은 사용자가 같은 강의에 대해 `PENDING` 또는 `CONFIRMED` 상태인 신청을 동시에 2개 이상 가질 수 없음. `CANCELLED` 상태는 이력으로 남으므로 재신청 가능.
-
-**근거**: 수강 신청의 일반적 상식. 취소 후 재신청은 허용되어야 사용자 경험이 자연스러움.
-
-**구현**: PostgreSQL 부분 UNIQUE 인덱스 — `CREATE UNIQUE INDEX ON enrollments(user_id, lecture_id) WHERE status <> 'CANCELLED'`.
-
-### BR-4. 결제 확정은 PENDING 상태에서만  `[필수 F6]`
-
-**결정**: PENDING → CONFIRMED 만 허용. CONFIRMED 또는 CANCELLED 에서 결제 확정 시도하면 거부.
-
-**근거**: 명세 상태 전이도. 멱등성 보장(P1)을 위해 동일 idempotency_key 로 두 번째 호출 시는 동일 응답 반환 (실제 상태 변경은 안 일어남).
-
-### BR-5. 취소는 PENDING 또는 CONFIRMED 에서만  `[필수 F7]`
-
-**결정**: 두 상태에서 모두 취소 가능. 단, `CONFIRMED` 의 경우 BR-6 시간 제한 추가.
-
-### BR-6. CONFIRMED 후 7일 이내만 취소 가능  `[선택 O1]`
-
-**결정**: `CONFIRMED` 상태에서 `confirmed_at` 이후 7일이 지나면 취소 불가. `PENDING` 은 시간 제한 없음.
-
-**근거**: 명세 선택 구현 예시 ("결제 후 7일 이내"). 7일은 settings 로 변경 가능하게 추상화.
-
-**구현**: `Enrollment#cancel(now, refundWindow)` 메서드에 Duration 주입.
-
-### BR-7. 정원 = 활성(PENDING + CONFIRMED) 신청 수 기준  `[필수 F9]`
-
-**결정**: 정원 카운터는 `PENDING + CONFIRMED` 합계. `PENDING` 도 자리를 점유한다고 봄.
-
-**근거**:
-- 결제 직전 사용자도 자리 보유로 봐야 공정. 결제 시점에 자리가 사라지면 사용자 경험 최악
-- 무한 PENDING 점유 방지는 별도 정책 필요 (예: 24시간 미결제 시 자동 취소). 본 과제 범위는 아님
-
-**대안 검토**:
-- (대안) `CONFIRMED` 만 카운트 → 동시에 100명이 PENDING 만들고 결제 안 하면 강의가 사실상 마비됨
-- (선택안) Redis TTL 기반 임시 hold → 인프라 추가 부담. MVP 범위 외
-
-### BR-8. 대기열(waitlist) — 만석 시에만 명시적 등록  `[선택 O2]`
-
-**결정**: 별도 엔드포인트 `POST /api/lectures/{id}/waitlist` 로 명시적 등록한다. **OPEN 이면서 정원이 모두 찬 강의**에만 등록 가능하고, 자리가 남아 있으면 `WAITLIST_NOT_NEEDED` 로 거부하여 `POST /api/enrollments` 로 바로 신청하도록 유도. 강의별 대기열 조회는 `GET /api/lectures/{id}/waitlist` (작성 크리에이터 전용).
-
-**근거**: "신청 시 정원 초과면 자동 대기열 등록 + 옵트아웃" 도 검토했으나 `POST /api/enrollments` 의 응답 형태가 다형성이 되는 게 API 계약상 부담스러워 대기열을 독립 리소스로 분리. 또한 제품 관점에서 사용자가 "대기열" 을 누르는 의미는 "만석이라 어쩔 수 없이 대기" 이므로, 자리가 남았는데 굳이 대기열 등록을 허용하면 의도와 어긋남. 취소 발생 시 head 1명 자동 PENDING 승급은 BR-9 참조.
-
-### BR-9. 취소 발생 시 waitlist 첫 사람에게 자동 PENDING 생성  `[추가 P3]`
-
-**결정**: 어떤 사용자가 신청을 취소하면, 동일 강의의 waitlist 에서 가장 오래된 항목(FIFO)을 찾아 자동으로 PENDING 신청 생성. 단 강의가 OPEN 상태일 때만 — CLOSED 는 명세상 "신청불가" 라 자동 승급도 차단. 해당 사용자에게는 별도 결제 시한 부여 (현재 구현은 무기한, 운영에서는 알림 + 24시간 결제 마감 권장).
-
-**구현**: `WaitlistService#promoteNext` + PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` — 다중 인스턴스에서도 안전하게 한 명만 승급. 진입부에 `lecture.status == OPEN` 가드.
-
-### BR-10. 신청자 본인만 자기 신청 취소 가능  `[추가 P11]`
-
-**결정**: 헤더 `X-User-Id` 와 `enrollments.user_id` 가 일치하지 않으면 403 Forbidden.
-
-### BR-11. 강의별 수강생 목록은 강의 작성 크리에이터만  `[선택 O3]`
-
-**결정**: `GET /api/lectures/{id}/enrollments` 호출자(`X-User-Id`) 가 해당 강의의 `creator_id` 와 일치하지 않으면 403.
-
----
-
-## 3. 인증 / 인가
-
-명세에서 "userId 를 헤더나 파라미터로 전달하는 방식도 허용"이라 명시. 본 과제는 다음 정책:
-
-- **헤더 `X-User-Id`** 으로 사용자 식별
-- 모든 신청/취소/결제 API 가 헤더 필수
-- 강의 등록은 `X-User-Id` 의 사용자가 `CREATOR` 역할이어야 함
-- 헤더 누락/위조에 대한 방어는 본 과제 범위 외
-
-**프로덕션 전환 시**: JWT 인증 + Spring Security. README "미구현 / 제약사항" 참조.
-
----
-
-## 4. 동시성 제어 전략 요약
-
-(상세는 [docs/CONCURRENCY.md](CONCURRENCY.md))
-
-4-Layer Defense:
-1. **Layer 1 — DB row-level lock**: `@Lock(PESSIMISTIC_WRITE)` on Lecture — 정원 갱신 직렬화
-2. **Layer 2 — 낙관 락**: `@Version` on Lecture (락 밖 경로의 stale write 차단) · on Enrollment (같은 사용자 동시 cancel 시 `enrolled_count` 이중 감소 차단)
-3. **Layer 3 — 부분 UNIQUE 인덱스**: 동일 사용자 active enrollment 1개만
-4. **Layer 4 — 멱등성**: `Idempotency-Key` 헤더 + 리플레이 경로 본인 검증 — 결제 재시도 안전 + 키 추측 시 정보 노출 차단
-
-**이전 유사 과제 대비 진화**: 이전에 수행한 유사 과제(Python/FastAPI)는 `threading.Lock` 기반이라 단일 프로세스 한계. 이번엔 DB row lock 기반이라 다중 인스턴스에서도 정합성 유지.
-
----
-
-## 5. 향후 확장 (의도적 미구현)
-
-| 우선순위 | 항목 | 사유 |
-|---|---|---|
-| 높음 | JWT 인증 + 권한 분리 | 프로덕션 필수 |
-| 높음 | PENDING 자동 만료 (24h) | BR-7 정책 보완 |
-| 중간 | 알림 발송 (이메일/푸시) | BE-C 과제 영역 |
-| 중간 | 결제 PG 연동 (토스페이먼츠 등) | 명세 범위 외 |
-| 낮음 | 분산 락(Redis Redisson) | 다중 인스턴스 스케일업 시 |
-| 낮음 | 환불 처리 | 본 과제 범위 외 |
+- 동시성 4-Layer 방어와 락 흐름 — [`CONCURRENCY.md`](CONCURRENCY.md)
+- 구현 범위·코드 위치·의도적 미구현 — [`SCOPE.md`](SCOPE.md)
