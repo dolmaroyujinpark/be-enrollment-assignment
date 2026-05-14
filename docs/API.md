@@ -25,7 +25,7 @@
 | code | HTTP | 의미 |
 |---|---|---|
 | `VALIDATION_FAILED` | 400 | 요청 body 검증 실패 (`detail` 에 필드별 메시지) |
-| `BAD_REQUEST` / `ILLEGAL_ARGUMENT` | 400 | 헤더 누락·타입 불일치 등 |
+| `ILLEGAL_ARGUMENT` | 400 | 인수/형식 위반 (도메인 생성자 가드 등) |
 | `USER_NOT_FOUND` / `LECTURE_NOT_FOUND` / `ENROLLMENT_NOT_FOUND` | 404 | 대상 없음 |
 | `NOT_CREATOR` | 403 | CREATOR 역할 아님 (강의 등록) |
 | `NOT_LECTURE_OWNER` | 403 | 강의 작성 크리에이터 아님 (상태 전이·수강생/대기열 조회) |
@@ -40,6 +40,7 @@
 | `ALREADY_IN_WAITLIST` | 409 | 이미 대기열에 등록됨 |
 | `DATA_INTEGRITY_VIOLATION` | 409 | DB 제약 위반 (경합 상황의 최종 방어선) |
 | `OPTIMISTIC_LOCK_CONFLICT` | 409 | 낙관 락(@Version) 충돌 |
+| `ILLEGAL_STATE` | 409 | 도메인 불변식 위반 안전망 (서비스 선검증을 우회한 경로) |
 | `INTERNAL_ERROR` | 500 | 처리되지 않은 예외 |
 
 ### 페이지네이션
