@@ -39,3 +39,13 @@
 | 권한 검사 우회 | 본인/크리에이터 검사 누락 없음 |
 
 자동화된 검증 절차(단위·통합·CI·부하)는 [`TEST.md`](TEST.md) 참조.
+
+## 교차 검증 (Codex)
+
+주요 설계 결정과 문서 정합성을 Codex 로 한 번 더 점검해, 단일 AI 결과물에 머무르지 않도록 했습니다.
+
+대표 사례 — 다층 방어 layer 의 필요성 재검토:
+- 초기엔 `Lecture.@Version` + `Enrollment.@Version` 양쪽을 두는 "4-Layer" 구성으로 설계
+- Codex 교차 검토에서 "`Lecture` row 의 모든 변경(`enrolled_count` ±1, `status` 전이) 이 `findByIdForUpdate` 로 직렬화되므로 락 밖 stale write 경로 자체가 없음 → `Lecture.@Version` 은 코드 낭비" 결론
+- `LectureService#changeStatus` 도 비관 락 경로로 통일 + `Lecture.@Version` 제거 + V3 migration 으로 컬럼 드롭
+- 결과: "감으로 쌓은 4 layer" 가 아니라 "각 layer 가 다른 race 카테고리를 1:1 매핑하는 3 layer + 1(멱등성)" 으로 narrative 정돈
