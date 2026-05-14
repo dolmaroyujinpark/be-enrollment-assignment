@@ -28,7 +28,8 @@ public class WaitlistService {
     private final UserRepository userRepository;
 
     /**
-     * 대기열 등록 (O2). OPEN 강의에 한해, 이미 active 신청이 없고 대기열에도 없을 때.
+     * 대기열 등록 (O2). OPEN 이면서 정원이 모두 찬 강의에 한해, 이미 active 신청이 없고 대기열에도 없을 때.
+     * 자리가 남아있으면 대기열 등록이 아니라 바로 수강 신청하도록 안내한다.
      * (uq_waitlist_user_lecture UNIQUE 제약이 중복 등록 경합의 최종 방어선)
      */
     @Transactional
@@ -40,6 +41,12 @@ public class WaitlistService {
             .orElseThrow(() -> new BusinessException(ErrorCode.LECTURE_NOT_FOUND, "존재하지 않는 강의: " + lectureId));
         if (!lecture.getStatus().isOpenForEnrollment()) {
             throw new BusinessException(ErrorCode.LECTURE_NOT_OPEN, "현재 강의 상태: " + lecture.getStatus());
+        }
+        // 정책 변경: 정원이 남아있으면 대기열 등록을 거부하고 직접 신청을 유도한다.
+        if (lecture.hasAvailableSeat()) {
+            throw new BusinessException(ErrorCode.WAITLIST_NOT_NEEDED,
+                "남은 자리 %d석 — 대기열 대신 POST /api/enrollments 로 신청하세요.".formatted(
+                    lecture.getCapacity() - lecture.getEnrolledCount()));
         }
         if (enrollmentRepository.existsByUserIdAndLectureIdAndStatusNot(userId, lectureId, EnrollmentStatus.CANCELLED)) {
             throw new BusinessException(ErrorCode.DUPLICATE_ENROLLMENT, "이미 신청한 강의는 대기열에 등록할 수 없습니다.");

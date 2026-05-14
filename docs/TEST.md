@@ -12,7 +12,7 @@
 | 통합 (동시성) | `@SpringBootTest` + Testcontainers (PostgreSQL 16) | 비관 락·낙관 락·부분 UNIQUE 인덱스가 실 DB 위에서 정원·이중 감소·중복 신청을 정확히 막는지, `enrolled_count == COUNT(active)` 정합 | `ConcurrencyTest` |
 | 부하 | K6 | 동시 부하에서도 정원 수만 성공 | `load-test/enrollment-burst.k6.js` |
 
-단위·통합 테스트는 약 70여 개입니다. `ConcurrencyTest`(3개)는 Docker 가 없으면 skip 하며 빌드는 통과합니다(`@Testcontainers(disabledWithoutDocker = true)`).
+단위·통합 테스트는 74개 (단위 71 + `ConcurrencyTest` 3) 입니다. `ConcurrencyTest` 는 Docker 가 없으면 skip 하며 빌드는 통과합니다(`@Testcontainers(disabledWithoutDocker = true)`).
 
 ## 주요 검증 포인트
 - **FSM** — 강의 `DRAFT→OPEN→CLOSED` 단방향(역전이·단계 건너뛰기 차단), 신청 `PENDING→CONFIRMED→CANCELLED`(이미 확정/취소된 신청에 결제·취소 차단). 도메인 메서드의 `IllegalStateException` 을 서비스가 `BusinessException` 으로 래핑 → ProblemDetail 409.
@@ -20,7 +20,7 @@
 - **멱등성·정보 노출** — `PaymentConfirmServiceTest`: 같은 `Idempotency-Key` 재호출 시 상태 변경 없이 동일 신청 반환, `save` 호출 없음. 다른 신청에 같은 키 → `IDEMPOTENCY_KEY_CONFLICT`. 같은 enrollment/같은 키로 다른 사용자가 리플레이 → `NOT_ENROLLMENT_OWNER` (타 사용자 enrollment 응답 노출 차단).
 - **7일 취소 제한** — `EnrollmentServiceTest`: `confirmedAt + 7d` 이내면 취소 성공, 경과면 `REFUND_WINDOW_PASSED`. PENDING 은 제한 없음.
 - **권한** — 작성자 아닌데 상태 전이/수강생 조회 → `NOT_LECTURE_OWNER`. 본인 아닌 신청 결제/취소 → `NOT_ENROLLMENT_OWNER`. CLASSMATE 가 강의 등록 → `NOT_CREATOR`.
-- **대기열** — `WaitlistServiceTest`: 등록 거부 케이스(OPEN 아님/이미 신청함/이미 대기 중), 자동 승급(`promoteNext` — OPEN·자리 있고 head 있으면 PENDING 생성 + `enrolled_count` +1 + 항목 삭제 / OPEN 아님·빈 대기열·자리 없음이면 no-op). `EnrollmentServiceTest`: 취소 시 `promoteNext` 호출 검증.
+- **대기열** — `WaitlistServiceTest`: 만석 강의에서만 등록 성공, 자리가 남아있으면 `WAITLIST_NOT_NEEDED` 로 거부, 그 외 거부 케이스(OPEN 아님/이미 신청함/이미 대기 중). 자동 승급(`promoteNext` — OPEN·자리 있고 head 있으면 PENDING 생성 + `enrolled_count` +1 + 항목 삭제 / OPEN 아님·빈 대기열·자리 없음이면 no-op). `EnrollmentServiceTest`: 취소 시 `promoteNext` 호출 검증.
 
 ## 시드 데이터 격리
 - 단위 테스트는 데모 시드를 사용하지 않습니다.

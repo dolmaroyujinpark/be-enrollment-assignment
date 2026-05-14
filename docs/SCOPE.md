@@ -26,7 +26,7 @@
 | # | 항목 | 출처 | 코드 |
 |---|---|---|---|
 | O1 | 수강 취소 가능 기간 제한 (결제 후 7일, 설정값) | 명세 선택 | `EnrollmentService#ensureWithinRefundWindow` (`enrollment.refund-window`), `Enrollment#cancel(now, refundWindow)` |
-| O2 | 대기열(waitlist) — 등록 / 크리에이터 조회 | 명세 선택 | `WaitlistController`, `WaitlistService#join`·`findByLecture`, `WaitlistEntry` |
+| O2 | 대기열(waitlist) — 만석 시 등록 / 크리에이터 조회 | 명세 선택 | `WaitlistController`, `WaitlistService#join`(만석 가드)·`findByLecture`, `WaitlistEntry` |
 | O3 | 강의별 수강생 목록 조회 (크리에이터 전용) | 명세 선택 | `LectureController#listEnrollments`, `EnrollmentService#findByLecture` (creator 검사) |
 | O4 | 신청 내역 페이지네이션 | 명세 선택 | `EnrollmentController#listMine` (`Pageable`/`PageResponse`) |
 

@@ -41,6 +41,7 @@
 | `IDEMPOTENCY_KEY_CONFLICT` | 409 | 같은 Idempotency-Key 를 다른 신청에 사용 |
 | `REFUND_WINDOW_PASSED` | 409 | CONFIRMED 신청을 결제 후 7일 경과 후 취소 |
 | `ALREADY_IN_WAITLIST` | 409 | 이미 대기열에 등록됨 |
+| `WAITLIST_NOT_NEEDED` | 409 | 자리가 남아있어 대기열 등록 불필요 (`POST /api/enrollments` 권장) |
 | `DATA_INTEGRITY_VIOLATION` | 409 | DB 제약 위반 (경합 상황의 최종 방어선) |
 | `OPTIMISTIC_LOCK_CONFLICT` | 409 | 낙관 락(@Version) 충돌 |
 | `ILLEGAL_STATE` | 409 | 도메인 불변식 위반 안전망 (서비스 선검증을 우회한 경로) |
@@ -137,7 +138,7 @@ curl 'http://localhost:8080/api/lectures/4/enrollments?page=0&size=20' -H 'X-Use
 ---
 
 ### `POST /api/lectures/{id}/waitlist` — 대기열 등록
-헤더: `X-User-Id`. OPEN 강의에 한해, 이미 active 신청이 없고 대기열에도 없을 때.
+헤더: `X-User-Id`. **OPEN 이면서 정원이 모두 찬 강의**에 한해, 이미 active 신청이 없고 대기열에도 없을 때. 자리가 남아 있으면 거부하고 직접 신청(`POST /api/enrollments`)을 권장.
 ```bash
 curl -X POST http://localhost:8080/api/lectures/4/waitlist -H 'X-User-Id: 7'
 ```
@@ -145,7 +146,7 @@ curl -X POST http://localhost:8080/api/lectures/4/waitlist -H 'X-User-Id: 7'
 ```json
 { "id": 1, "userId": 7, "lectureId": 4, "createdAt": "2026-06-01T00:00:00Z" }
 ```
-에러: `422 LECTURE_NOT_OPEN`, `409 DUPLICATE_ENROLLMENT` (이미 신청함), `409 ALREADY_IN_WAITLIST`, `404 USER_NOT_FOUND`/`LECTURE_NOT_FOUND`.
+에러: `422 LECTURE_NOT_OPEN`, `409 WAITLIST_NOT_NEEDED` (자리 남아있음), `409 DUPLICATE_ENROLLMENT` (이미 신청함), `409 ALREADY_IN_WAITLIST`, `404 USER_NOT_FOUND`/`LECTURE_NOT_FOUND`.
 
 ---
 

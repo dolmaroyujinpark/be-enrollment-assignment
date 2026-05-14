@@ -80,11 +80,11 @@
 - (대안) `CONFIRMED` 만 카운트 → 동시에 100명이 PENDING 만들고 결제 안 하면 강의가 사실상 마비됨
 - (선택안) Redis TTL 기반 임시 hold → 인프라 추가 부담. MVP 범위 외
 
-### BR-8. 대기열(waitlist) — 명시적 등록 엔드포인트  `[선택 O2]`
+### BR-8. 대기열(waitlist) — 만석 시에만 명시적 등록  `[선택 O2]`
 
-**결정**: 정원이 찬 경우 신청 응답으로 자동 대기열 등록하는 대신, 별도 엔드포인트 `POST /api/lectures/{id}/waitlist` 로 명시적 등록한다 (OPEN 강의에 한해, 이미 active 신청이 없고 대기열에도 없을 때). 강의별 대기열 조회는 `GET /api/lectures/{id}/waitlist` (작성 크리에이터 전용).
+**결정**: 별도 엔드포인트 `POST /api/lectures/{id}/waitlist` 로 명시적 등록한다. **OPEN 이면서 정원이 모두 찬 강의**에만 등록 가능하고, 자리가 남아 있으면 `WAITLIST_NOT_NEEDED` 로 거부하여 `POST /api/enrollments` 로 바로 신청하도록 유도. 강의별 대기열 조회는 `GET /api/lectures/{id}/waitlist` (작성 크리에이터 전용).
 
-**근거**: "신청 시 정원 초과면 자동으로 대기열 등록 + `waitlist=false` 옵트아웃"도 검토했으나, `POST /api/enrollments` 의 응답 형태가 (신청됨 / 대기 등록됨) 다형성이 되는 게 API 계약상 부담스러워, 대기열을 독립 리소스로 분리하는 편이 명확하다고 판단. 취소 발생 시 head 1명 자동 PENDING 승급은 BR-9 참조.
+**근거**: "신청 시 정원 초과면 자동 대기열 등록 + 옵트아웃" 도 검토했으나 `POST /api/enrollments` 의 응답 형태가 다형성이 되는 게 API 계약상 부담스러워 대기열을 독립 리소스로 분리. 또한 제품 관점에서 사용자가 "대기열" 을 누르는 의미는 "만석이라 어쩔 수 없이 대기" 이므로, 자리가 남았는데 굳이 대기열 등록을 허용하면 의도와 어긋남. 취소 발생 시 head 1명 자동 PENDING 승급은 BR-9 참조.
 
 ### BR-9. 취소 발생 시 waitlist 첫 사람에게 자동 PENDING 생성  `[추가 P3]`
 

@@ -28,7 +28,8 @@ public class WaitlistController {
 
     private final WaitlistService waitlistService;
 
-    @Operation(summary = "대기열 등록", description = "OPEN 강의의 대기열에 등록한다. 이미 active 신청이 있거나 이미 대기 중이면 거부. (헤더 X-User-Id 필요)")
+    @Operation(summary = "대기열 등록",
+        description = "OPEN 이면서 정원이 모두 찬 강의의 대기열에 등록한다. 자리가 남아 있으면 거부 (`WAITLIST_NOT_NEEDED`) — 바로 수강 신청 권장. 이미 active 신청이 있거나 이미 대기 중이면 거부. (헤더 X-User-Id 필요)")
     @ApiResponse(responseCode = "201", description = "대기열 등록 성공")
     @PostMapping
     public ResponseEntity<WaitlistResponse> join(

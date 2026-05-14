@@ -86,10 +86,10 @@ class WaitlistServiceTest {
     class Join {
 
         @Test
-        @DisplayName("OPEN 강의에 정상 등록")
+        @DisplayName("OPEN + 만석 강의에 정상 등록")
         void happyPath() {
             given(userRepository.existsById(USER_ID)).willReturn(true);
-            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN)));
+            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN, 5, 5))); // 만석
             given(enrollmentRepository.existsByUserIdAndLectureIdAndStatusNot(USER_ID, LECTURE_ID, EnrollmentStatus.CANCELLED))
                 .willReturn(false);
             given(waitlistRepository.existsByUserIdAndLectureId(USER_ID, LECTURE_ID)).willReturn(false);
@@ -99,6 +99,17 @@ class WaitlistServiceTest {
 
             assertThat(result.getUserId()).isEqualTo(USER_ID);
             assertThat(result.getLectureId()).isEqualTo(LECTURE_ID);
+        }
+
+        @Test
+        @DisplayName("자리가 남아있으면 → WAITLIST_NOT_NEEDED (바로 수강 신청 유도)")
+        void seatsAvailable() {
+            given(userRepository.existsById(USER_ID)).willReturn(true);
+            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN, 5, 2))); // 자리 있음
+
+            assertThatThrownBy(() -> waitlistService.join(USER_ID, LECTURE_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.WAITLIST_NOT_NEEDED);
         }
 
         @Test
@@ -134,10 +145,10 @@ class WaitlistServiceTest {
         }
 
         @Test
-        @DisplayName("이미 신청(active)한 강의면 → DUPLICATE_ENROLLMENT")
+        @DisplayName("(만석에서) 이미 신청(active)한 강의면 → DUPLICATE_ENROLLMENT")
         void alreadyEnrolled() {
             given(userRepository.existsById(USER_ID)).willReturn(true);
-            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN)));
+            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN, 5, 5)));
             given(enrollmentRepository.existsByUserIdAndLectureIdAndStatusNot(USER_ID, LECTURE_ID, EnrollmentStatus.CANCELLED))
                 .willReturn(true);
 
@@ -147,10 +158,10 @@ class WaitlistServiceTest {
         }
 
         @Test
-        @DisplayName("이미 대기열에 있으면 → ALREADY_IN_WAITLIST")
+        @DisplayName("(만석에서) 이미 대기열에 있으면 → ALREADY_IN_WAITLIST")
         void alreadyInWaitlist() {
             given(userRepository.existsById(USER_ID)).willReturn(true);
-            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN)));
+            given(lectureRepository.findById(LECTURE_ID)).willReturn(Optional.of(lecture(LectureStatus.OPEN, 5, 5)));
             given(enrollmentRepository.existsByUserIdAndLectureIdAndStatusNot(USER_ID, LECTURE_ID, EnrollmentStatus.CANCELLED))
                 .willReturn(false);
             given(waitlistRepository.existsByUserIdAndLectureId(USER_ID, LECTURE_ID)).willReturn(true);
