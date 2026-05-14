@@ -9,7 +9,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -59,9 +58,6 @@ public class Lecture {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private LectureStatus status;
-
-    @Version
-    private Long version;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

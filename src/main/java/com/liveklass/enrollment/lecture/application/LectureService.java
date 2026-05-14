@@ -56,7 +56,9 @@ public class LectureService {
 
     @Transactional
     public Lecture changeStatus(Long lectureId, LectureStatus target, Long requesterId) {
-        Lecture lecture = lectureRepository.findById(lectureId)
+        // 신청/취소와 동일한 row-level 비관 락 경로를 사용해, status 변경과 enrolled_count 변경이
+        // 같은 락 큐에서 직렬화되도록 한다. Lecture row 의 정합성은 비관 락 하나로 보장한다.
+        Lecture lecture = lectureRepository.findByIdForUpdate(lectureId)
             .orElseThrow(() -> new BusinessException(ErrorCode.LECTURE_NOT_FOUND, "존재하지 않는 강의: " + lectureId));
         if (!lecture.getCreatorId().equals(requesterId)) {
             throw new BusinessException(ErrorCode.NOT_LECTURE_OWNER);

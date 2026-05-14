@@ -161,7 +161,7 @@ class LectureServiceTest {
     @DisplayName("작성자 본인이 changeStatus 호출 시 전이 성공")
     void changeStatus_byCreator_succeeds() {
         Lecture lecture = lectureWithId(1L, 10L);
-        given(lectureRepository.findById(1L)).willReturn(Optional.of(lecture));
+        given(lectureRepository.findByIdForUpdate(1L)).willReturn(Optional.of(lecture));
 
         Lecture updated = lectureService.changeStatus(1L, LectureStatus.OPEN, 10L);
 
@@ -172,7 +172,7 @@ class LectureServiceTest {
     @DisplayName("작성자가 아닌 사용자가 changeStatus 호출 시 NOT_LECTURE_OWNER")
     void changeStatus_byOther_throws() {
         Lecture lecture = lectureWithId(1L, 10L);
-        given(lectureRepository.findById(1L)).willReturn(Optional.of(lecture));
+        given(lectureRepository.findByIdForUpdate(1L)).willReturn(Optional.of(lecture));
 
         assertThatThrownBy(() -> lectureService.changeStatus(1L, LectureStatus.OPEN, 99L))
             .isInstanceOf(BusinessException.class)
@@ -183,7 +183,7 @@ class LectureServiceTest {
     @DisplayName("허용되지 않는 전이를 요청하면 INVALID_LECTURE_STATUS_TRANSITION")
     void changeStatus_invalidTransition_throws() {
         Lecture lecture = lectureWithId(1L, 10L); // DRAFT
-        given(lectureRepository.findById(1L)).willReturn(Optional.of(lecture));
+        given(lectureRepository.findByIdForUpdate(1L)).willReturn(Optional.of(lecture));
 
         assertThatThrownBy(() -> lectureService.changeStatus(1L, LectureStatus.CLOSED, 10L))
             .isInstanceOf(BusinessException.class)
