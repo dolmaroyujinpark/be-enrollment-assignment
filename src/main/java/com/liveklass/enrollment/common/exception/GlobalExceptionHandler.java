@@ -3,6 +3,7 @@ package com.liveklass.enrollment.common.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -45,6 +46,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ProblemDetail handleOptimisticLock(ObjectOptimisticLockingFailureException e) {
         log.warn("낙관 락 충돌: {}", e.getMessage());
         return problem(HttpStatus.CONFLICT, "동시 수정 충돌이 발생했습니다. 다시 시도해 주세요.", "OPTIMISTIC_LOCK_CONFLICT", null);
+    }
+
+    /**
+     * Pageable 의 sort 파라미터에 엔티티가 모르는 필드가 들어왔을 때 (예: Swagger UI 가 자동으로 채우는
+     * `?sort=["string"]` placeholder). Spring Data 가 ORDER BY 절을 빌드할 때 throw 하므로 500 으로
+     * 흘러나가지 않도록 400 으로 매핑한다.
+     */
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ProblemDetail handleInvalidSortProperty(PropertyReferenceException e) {
+        return problem(HttpStatus.BAD_REQUEST, "정렬 기준이 올바르지 않습니다.",
+            "INVALID_SORT_PROPERTY", "허용되지 않는 정렬 필드: " + e.getPropertyName());
     }
 
     /** 도메인 불변식 위반(서비스 선검증을 통과하지 못한 경우) — 안전망. */

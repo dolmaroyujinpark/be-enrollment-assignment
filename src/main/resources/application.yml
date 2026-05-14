@@ -38,6 +38,9 @@ management:
       show-details: when_authorized
 
 springdoc:
+  # Pageable 같은 객체 파라미터를 page/size/sort 개별 query param 으로 분리 렌더링한다.
+  # 안 그러면 Swagger UI 가 sort 를 JSON 배열로 직렬화해 ?sort=["id,desc"] 처럼 깨진 형식으로 보냄.
+  default-flat-param-object: true
   swagger-ui:
     path: /swagger-ui.html
   api-docs:

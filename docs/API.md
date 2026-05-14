@@ -17,6 +17,7 @@ REST API. 인터랙티브 문서는 앱 실행 후 **Swagger UI** (`/swagger-ui.
 | `VALIDATION_FAILED` | 400 | 요청 body 검증 실패 |
 | `MISSING_HEADER` | 400 | 필수 헤더 누락 (`X-User-Id`, `Idempotency-Key`) |
 | `TYPE_MISMATCH` | 400 | 파라미터 타입 불일치 (`?status=INVALID` 등) |
+| `INVALID_SORT_PROPERTY` | 400 | `?sort=` 의 필드가 엔티티에 없음 (예: Swagger UI 의 `["string"]` placeholder) |
 | `MALFORMED_REQUEST` | 400 | body 비어있거나 JSON 파싱 불가 |
 | `ILLEGAL_ARGUMENT` | 400 | 도메인 생성자 가드 등 |
 | `USER_NOT_FOUND` / `LECTURE_NOT_FOUND` / `ENROLLMENT_NOT_FOUND` | 404 | 대상 없음 |
