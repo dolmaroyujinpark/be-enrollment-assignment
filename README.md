@@ -149,7 +149,7 @@ erDiagram
 | 결정 | 핵심 이유 | 트레이드오프 |
 |---|---|---|
 | DB로 **PostgreSQL** | 부분 UNIQUE 인덱스 + `FOR UPDATE SKIP LOCKED` 를 우회 없이 사용 (H2 미지원·MySQL 우회 필요) | 의존성 없이 즉시 실행 불가 → Docker Compose / Testcontainers 로 보완 |
-| 정원 동시성에 **비관 락** | 정원은 핫스팟이라 낙관 락 단독이면 재시도 루프·tail latency 악화. 비관 락은 직렬화로 재시도 없이 정확. `@Version` 은 락 밖 경로의 stale write 방어 | 같은 강의 신청이 직렬화 — 락 단위가 강의(row)라 전체 시스템은 강의 수만큼 병렬 |
+| 정원 동시성에 **비관 락** | 정원은 핫스팟이라 낙관 락 단독이면 재시도 루프·tail latency 악화. 비관 락은 직렬화로 재시도 없이 정확. `Lecture` row 의 모든 변경(신청·취소·status 전이) 은 `findByIdForUpdate` 로 같은 락 큐에 묶임. `Enrollment.@Version` 은 락이 못 잡는 동일 enrollment 동시 cancel race 만 처리 | 같은 강의 신청이 직렬화 — 락 단위가 강의(row)라 전체 시스템은 강의 수만큼 병렬 |
 | 결제 확정에 **`Idempotency-Key` + DB UNIQUE** | 재시도·더블 클릭에도 한 번만 처리. 결제 API 의 표준 패턴 | 클라이언트가 요청당 고유 키 관리 필요 |
 | **명시적 FSM** 을 도메인 메서드에 | 잘못된 전이를 도메인에서 차단 → `BusinessException` → RFC 7807 ProblemDetail | — |
 | **대기열은 만석일 때만 등록** | 자리가 남았는데 대기열에 넣으면 사용자 의도와 어긋남. 명시적 안내가 좋음 | 자리 가용성 체크 한 단계 추가 (`hasAvailableSeat`) |
