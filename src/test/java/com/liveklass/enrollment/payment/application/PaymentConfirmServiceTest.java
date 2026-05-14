@@ -96,6 +96,17 @@ class PaymentConfirmServiceTest {
     }
 
     @Test
+    @DisplayName("빈/공백 Idempotency-Key 는 IllegalArgumentException → 400 ILLEGAL_ARGUMENT")
+    void confirm_blankIdempotencyKey_rejected() {
+        assertThatThrownBy(() -> paymentConfirmService.confirm(USER_ID, ENROLLMENT_ID, ""))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> paymentConfirmService.confirm(USER_ID, ENROLLMENT_ID, "   "))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> paymentConfirmService.confirm(USER_ID, ENROLLMENT_ID, null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     @DisplayName("[Bug #2 회귀] 같은 enrollmentId+Idempotency-Key 라도 다른 사용자가 리플레이하면 → NOT_ENROLLMENT_OWNER (타 사용자 enrollment 노출 차단)")
     void confirm_idempotentReplayByDifferentUser_isRejected() {
         long ownerId = USER_ID;

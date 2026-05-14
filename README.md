@@ -136,8 +136,8 @@ curl -X PATCH localhost:8080/api/lectures/21/status -H 'X-User-Id: 1' -H 'Conten
 
 # 신청 (수강생 id 6) → 결제 → 취소
 curl -X POST localhost:8080/api/enrollments -H 'X-User-Id: 6' -H 'Content-Type: application/json' -d '{"lectureId":21}'
-curl -X POST localhost:8080/api/enrollments/101/payment -H 'X-User-Id: 6' -H 'Idempotency-Key: pay-101-abc'
-curl -X DELETE localhost:8080/api/enrollments/101 -H 'X-User-Id: 6'
+curl -X POST localhost:8080/api/enrollments/1/payment -H 'X-User-Id: 6' -H 'Idempotency-Key: pay-1-abc'
+curl -X DELETE localhost:8080/api/enrollments/1 -H 'X-User-Id: 6'
 ```
 
 ---

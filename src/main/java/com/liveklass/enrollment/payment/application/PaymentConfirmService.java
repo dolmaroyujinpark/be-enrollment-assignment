@@ -27,6 +27,11 @@ public class PaymentConfirmService {
      */
     @Transactional
     public Enrollment confirm(Long userId, Long enrollmentId, String idempotencyKey) {
+        // 헤더 값이 비어있으면 멱등성 자체가 의미가 없으므로 400 으로 거절한다.
+        // (Spring 의 @RequestHeader 는 빈 문자열을 통과시키므로 서비스 단에서 한 번 더 가드.)
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("Idempotency-Key 헤더는 비어있을 수 없습니다.");
+        }
         Optional<PaymentIntent> alreadyProcessed = paymentIntentRepository.findByIdempotencyKey(idempotencyKey);
         if (alreadyProcessed.isPresent()) {
             Enrollment enrollment = loadEnrollment(alreadyProcessed.get().getEnrollmentId());

@@ -166,7 +166,7 @@ curl -X POST http://localhost:8080/api/enrollments \
 ```
 `201 Created`, `Location: /api/enrollments/{id}`:
 ```json
-{ "id": 101, "userId": 6, "lectureId": 4, "status": "PENDING",
+{ "id": 1, "userId": 6, "lectureId": 4, "status": "PENDING",
   "appliedAt": "2026-06-01T00:00:00Z", "confirmedAt": null, "cancelledAt": null, "paymentIntentId": null }
 ```
 에러: `422 LECTURE_NOT_OPEN` (DRAFT/CLOSED 강의), `409 CAPACITY_EXCEEDED` (정원 초과 — 동시 신청 시 정원 수만 성공, 나머지 이 에러), `409 DUPLICATE_ENROLLMENT` (동일 강의 active 신청 이미 있음), `404 USER_NOT_FOUND`/`LECTURE_NOT_FOUND`.
@@ -176,12 +176,12 @@ curl -X POST http://localhost:8080/api/enrollments \
 ### `POST /api/enrollments/{id}/payment` — 결제 확정
 헤더: `X-User-Id` (신청 본인), `Idempotency-Key` (필수). PENDING→CONFIRMED. 같은 키로 재호출 시 상태 변경 없이 동일 응답.
 ```bash
-curl -X POST http://localhost:8080/api/enrollments/101/payment \
-  -H 'X-User-Id: 6' -H 'Idempotency-Key: pay-101-abc'
+curl -X POST http://localhost:8080/api/enrollments/1/payment \
+  -H 'X-User-Id: 6' -H 'Idempotency-Key: pay-1-abc'
 ```
 `200 OK`:
 ```json
-{ "id": 101, "userId": 6, "lectureId": 4, "status": "CONFIRMED",
+{ "id": 1, "userId": 6, "lectureId": 4, "status": "CONFIRMED",
   "appliedAt": "2026-06-01T00:00:00Z", "confirmedAt": "2026-06-01T00:05:00Z", "cancelledAt": null, "paymentIntentId": 1 }
 ```
 에러: `409 INVALID_ENROLLMENT_STATUS_TRANSITION` (PENDING 아닌 신청에 결제), `409 IDEMPOTENCY_KEY_CONFLICT` (같은 키를 다른 신청에 사용), `403 NOT_ENROLLMENT_OWNER` (본인 신청 아님 — 정상 호출 및 같은 키 리플레이 양쪽에서 검사), `404 ENROLLMENT_NOT_FOUND`, `400` (`Idempotency-Key` 헤더 누락).
@@ -191,11 +191,11 @@ curl -X POST http://localhost:8080/api/enrollments/101/payment \
 ### `DELETE /api/enrollments/{id}` — 수강 취소
 헤더: `X-User-Id` (신청 본인). →CANCELLED. CONFIRMED 신청은 결제 후 7일 이내만. 취소로 자리가 비면 대기열 다음 사람이 자동 PENDING 승급.
 ```bash
-curl -X DELETE http://localhost:8080/api/enrollments/101 -H 'X-User-Id: 6'
+curl -X DELETE http://localhost:8080/api/enrollments/1 -H 'X-User-Id: 6'
 ```
 `200 OK`:
 ```json
-{ "id": 101, "userId": 6, "lectureId": 4, "status": "CANCELLED",
+{ "id": 1, "userId": 6, "lectureId": 4, "status": "CANCELLED",
   "appliedAt": "...", "confirmedAt": "...", "cancelledAt": "2026-06-02T00:00:00Z", "paymentIntentId": 1 }
 ```
 에러: `403 NOT_ENROLLMENT_OWNER`, `409 REFUND_WINDOW_PASSED` (결제 후 7일 경과), `409 INVALID_ENROLLMENT_STATUS_TRANSITION` (이미 CANCELLED), `404 ENROLLMENT_NOT_FOUND`.

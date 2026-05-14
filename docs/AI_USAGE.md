@@ -20,7 +20,7 @@
 ## 직접 조정한 부분
 - **페이지네이션 범위** — 처음엔 `GET /api/enrollments/me` 에만 두려 했으나 선택 구현을 빠짐없이 반영하기로 결정해 강의 목록(`GET /api/lectures`) 응답도 `PageResponse` 로 변경.
 - **대기열 등록 방식** — "정원 초과 시 자동 등록 + `waitlist=false` 옵트아웃"도 검토했으나, `POST /api/enrollments` 응답이 다형성이 되는 게 부담스러워 별도 엔드포인트 `POST /api/lectures/{id}/waitlist` 로 명시적 등록하도록 변경. (자동 승급은 취소 시점에 동작.)
-- **ConcurrencyTest 규모** — 시드 클래스메이트가 30명이라 100 VU 가 아니라 30 VU(서로 다른 사용자) / 정원 N 으로 조정.
+- **ConcurrencyTest 규모** — 정원 3 강의에 50개 스레드가 거의 동시에 신청해 정확히 3명만 성공·나머지 47명이 `CAPACITY_EXCEEDED` 가 나는지 검증하도록 설정. 학생은 테스트 내부에서 직접 생성하므로 시드 데이터와 무관합니다. (K6 부하 테스트는 VU 단위로 별도 동작.)
 - **로컬 Docker 호환** — Testcontainers 가 macOS Docker Desktop 에 연결 못 하는 증상을 만나, 실패 로그에서 ① docker-java 기본 API 버전 1.32 거부 ② `/var/run/docker.sock` 가 CLI 프록시 ③ Ryuk 의 소켓 마운트 경로 — 세 원인을 좁혔습니다. `build.gradle.kts` 테스트 태스크의 `api.version`·`TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE`·(macOS 한정)`DOCKER_HOST` 설정으로 해결했고 CI(Linux)에는 영향이 없습니다.
 
 ## AI 제안을 받아들이지 않은 사례
