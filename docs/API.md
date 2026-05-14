@@ -25,6 +25,9 @@
 | code | HTTP | 의미 |
 |---|---|---|
 | `VALIDATION_FAILED` | 400 | 요청 body 검증 실패 (`detail` 에 필드별 메시지) |
+| `MISSING_HEADER` | 400 | 필수 헤더 누락 (`X-User-Id`, `Idempotency-Key` 등 — `detail` 에 헤더명) |
+| `TYPE_MISMATCH` | 400 | 쿼리/패스 파라미터 타입 불일치 (예: `?status=INVALID`, `/api/lectures/abc`) |
+| `MALFORMED_REQUEST` | 400 | 요청 body 가 비어있거나 JSON 으로 파싱 불가 |
 | `ILLEGAL_ARGUMENT` | 400 | 인수/형식 위반 (도메인 생성자 가드 등) |
 | `USER_NOT_FOUND` / `LECTURE_NOT_FOUND` / `ENROLLMENT_NOT_FOUND` | 404 | 대상 없음 |
 | `NOT_CREATOR` | 403 | CREATOR 역할 아님 (강의 등록) |

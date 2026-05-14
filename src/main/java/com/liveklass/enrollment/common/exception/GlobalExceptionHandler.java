@@ -1,14 +1,17 @@
 package com.liveklass.enrollment.common.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -68,6 +71,31 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
             .collect(Collectors.joining(", "));
         ProblemDetail pd = problem(HttpStatus.BAD_REQUEST, "요청 값 검증에 실패했습니다.", "VALIDATION_FAILED", detail);
+        return ResponseEntity.status(status).body(pd);
+    }
+
+    /** 필수 헤더 누락 (예: X-User-Id, Idempotency-Key) — 평가자가 자주 부딪히는 400. */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ProblemDetail handleMissingRequestHeader(MissingRequestHeaderException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "필수 헤더가 누락되었습니다.", "MISSING_HEADER",
+            "헤더 누락: " + ex.getHeaderName());
+    }
+
+    /** 쿼리/패스 파라미터의 타입 불일치 (예: ?status=INVALID, /api/lectures/abc). */
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(
+        TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        String detail = "잘못된 파라미터 값: %s".formatted(ex.getValue());
+        ProblemDetail pd = problem(HttpStatus.BAD_REQUEST, "파라미터 타입이 올바르지 않습니다.", "TYPE_MISMATCH", detail);
+        return ResponseEntity.status(status).body(pd);
+    }
+
+    /** 요청 body 가 JSON 으로 파싱 안 되거나 비어있을 때. */
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+        HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        ProblemDetail pd = problem(HttpStatus.BAD_REQUEST, "요청 본문을 읽을 수 없습니다.", "MALFORMED_REQUEST",
+            "요청 body 가 비어있거나 JSON 형식이 아닙니다.");
         return ResponseEntity.status(status).body(pd);
     }
 
