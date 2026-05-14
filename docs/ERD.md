@@ -13,7 +13,11 @@ erDiagram
     lectures ||--o{ waitlist_entries : "queue"
     enrollments ||--o| payment_intents : "confirms with"
 
-    users { bigint id PK; varchar name; varchar role "CREATOR | CLASSMATE" }
+    users {
+        bigint id PK
+        varchar name
+        varchar role "CREATOR | CLASSMATE"
+    }
     lectures {
         bigint id PK
         bigint creator_id FK

@@ -53,8 +53,8 @@ docker compose --profile app up
 
 명세 분류와 자발적 추가를 4-bucket 으로 정리. 항목별 코드 위치는 [`docs/SCOPE.md`](docs/SCOPE.md).
 
-- **필수 (10)** — 강의 CRUD + 상태 전이 / 수강 신청·결제·취소 / 내 신청 목록 / 정원 초과 거부 / 동시 신청 처리
-- **선택 (4)** — 결제 후 7일 취소 제한 / 대기열(만석 시 등록·자동 승급) / 강의별 수강생 조회(크리에이터 전용) / 신청 내역 페이지네이션
+- **필수 구현 세부 기능 (10)** — 강의 CRUD + 상태 전이 / 수강 신청·결제·취소 / 내 신청 목록 / 정원 초과 거부 / 동시 신청 처리
+- **선택 구현 세부 기능 (4)** — 결제 후 7일 취소 제한 / 대기열(만석 시 등록·자동 승급) / 강의별 수강생 조회(크리에이터 전용) / 신청 내역 페이지네이션
 - **암묵적 요구** — 동시성 다층 방어 / 결제 멱등성 / 명시적 FSM / 일관된 RFC 7807 에러 응답
 - **자발적 차별화** — Testcontainers 동시성 통합 테스트 / K6 부하 / CI / 구조화 로깅 / Swagger / Mermaid 다이어그램
 
@@ -105,10 +105,32 @@ erDiagram
     lectures ||--o{ waitlist_entries : queue
     enrollments ||--o| payment_intents : "confirmed with"
 
-    lectures { bigint id PK; int capacity; int enrolled_count; varchar status; bigint version }
-    enrollments { bigint id PK; bigint user_id FK; bigint lecture_id FK; varchar status; bigint version }
-    payment_intents { bigint id PK; varchar idempotency_key UK; bigint enrollment_id; varchar status }
-    waitlist_entries { bigint id PK; bigint user_id FK; bigint lecture_id FK; timestamptz created_at }
+    lectures {
+        bigint id PK
+        int capacity
+        int enrolled_count
+        varchar status
+        bigint version
+    }
+    enrollments {
+        bigint id PK
+        bigint user_id FK
+        bigint lecture_id FK
+        varchar status
+        bigint version
+    }
+    payment_intents {
+        bigint id PK
+        varchar idempotency_key UK
+        bigint enrollment_id
+        varchar status
+    }
+    waitlist_entries {
+        bigint id PK
+        bigint user_id FK
+        bigint lecture_id FK
+        timestamptz created_at
+    }
 ```
 
 핵심 제약 — `uq_enrollments_active` 부분 UNIQUE (동일 사용자 active 신청 1개, CANCELLED 후 재신청 허용) / `payment_intents.idempotency_key` UNIQUE (결제 멱등성) / `lectures.enrolled_count` 는 활성 신청 수 비정규화 캐시 (비관 락 안에서 ±1, `@Version` 으로 stale write 차단).
