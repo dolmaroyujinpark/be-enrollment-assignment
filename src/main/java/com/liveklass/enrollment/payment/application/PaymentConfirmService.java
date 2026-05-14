@@ -33,6 +33,10 @@ public class PaymentConfirmService {
             if (!enrollment.getId().equals(enrollmentId)) {
                 throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_CONFLICT);
             }
+            // 리플레이 경로도 정상 경로와 동일하게 본인 신청만 응답. 멱등키 추측 시 타 사용자 enrollment 노출을 막는다.
+            if (!enrollment.getUserId().equals(userId)) {
+                throw new BusinessException(ErrorCode.NOT_ENROLLMENT_OWNER, "본인의 수강 신청만 결제할 수 있습니다.");
+            }
             return enrollment; // 멱등: 이미 처리됨, 동일 응답
         }
 

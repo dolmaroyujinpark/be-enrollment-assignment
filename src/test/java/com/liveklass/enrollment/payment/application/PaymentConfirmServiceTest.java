@@ -96,6 +96,22 @@ class PaymentConfirmServiceTest {
     }
 
     @Test
+    @DisplayName("[Bug #2 회귀] 같은 enrollmentId+Idempotency-Key 라도 다른 사용자가 리플레이하면 → NOT_ENROLLMENT_OWNER (타 사용자 enrollment 노출 차단)")
+    void confirm_idempotentReplayByDifferentUser_isRejected() {
+        long ownerId = USER_ID;
+        long attackerId = 999L;
+        Enrollment alreadyConfirmed = enrollmentWithId(ENROLLMENT_ID, ownerId);
+        alreadyConfirmed.confirm(PAYMENT_INTENT_ID, Instant.now());
+        given(paymentIntentRepository.findByIdempotencyKey(KEY))
+            .willReturn(Optional.of(new PaymentIntent(KEY, ENROLLMENT_ID)));
+        given(enrollmentRepository.findById(ENROLLMENT_ID)).willReturn(Optional.of(alreadyConfirmed));
+
+        assertThatThrownBy(() -> paymentConfirmService.confirm(attackerId, ENROLLMENT_ID, KEY))
+            .isInstanceOf(BusinessException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOT_ENROLLMENT_OWNER);
+    }
+
+    @Test
     @DisplayName("이미 다른 신청에 쓰인 Idempotency-Key → IDEMPOTENCY_KEY_CONFLICT")
     void confirm_keyConflict() {
         long otherEnrollmentId = 999L;
