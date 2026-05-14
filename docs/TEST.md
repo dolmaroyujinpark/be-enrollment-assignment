@@ -22,6 +22,11 @@
 - **권한** — 작성자 아닌데 상태 전이/수강생 조회 → `NOT_LECTURE_OWNER`. 본인 아닌 신청 결제/취소 → `NOT_ENROLLMENT_OWNER`. CLASSMATE 가 강의 등록 → `NOT_CREATOR`.
 - **대기열** — `WaitlistServiceTest`: 등록 거부 케이스(OPEN 아님/이미 신청함/이미 대기 중), 자동 승급(`promoteNext` — OPEN·자리 있고 head 있으면 PENDING 생성 + `enrolled_count` +1 + 항목 삭제 / OPEN 아님·빈 대기열·자리 없음이면 no-op). `EnrollmentServiceTest`: 취소 시 `promoteNext` 호출 검증.
 
+## 시드 데이터 격리
+- 단위 테스트는 데모 시드를 사용하지 않습니다.
+- 통합/동시성 테스트는 로컬 데모 DB 와 분리된 테스트 환경에서 실행됩니다 (`@ActiveProfiles("test")` + Testcontainers 가 띄운 별도 PostgreSQL 컨테이너).
+- `ConcurrencyTest` 는 `@BeforeEach` 에서 필요한 사용자/강의를 직접 생성하고, 다음 테스트 시작 전에 `deleteAll` 로 정리합니다.
+
 ## 의도적으로 안 한 것
 - 컨트롤러 MockMvc 테스트 — 컨트롤러가 헤더/바디 → 서비스 호출 → DTO 변환만 하는 얇은 pass-through 라, 서비스·도메인 단위 + 통합 테스트로 핵심이 커버됩니다. 여력이 있으면 `@WebMvcTest` 로 에러 응답 포맷(ProblemDetail) 검증을 추가할 수 있습니다.
 
