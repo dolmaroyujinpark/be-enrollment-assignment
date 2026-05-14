@@ -35,5 +35,5 @@
 
 ## 관련 문서
 
-- 동시성 4-Layer 방어와 락 흐름 — [`CONCURRENCY.md`](CONCURRENCY.md)
+- 동시성 다층 방어와 락 흐름 — [`CONCURRENCY.md`](CONCURRENCY.md)
 - 구현 범위·코드 위치·의도적 미구현 — [`SCOPE.md`](SCOPE.md)

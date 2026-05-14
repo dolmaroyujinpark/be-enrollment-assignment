@@ -110,7 +110,6 @@ erDiagram
         int capacity
         int enrolled_count
         varchar status
-        bigint version
     }
     enrollments {
         bigint id PK
@@ -133,7 +132,7 @@ erDiagram
     }
 ```
 
-핵심 제약 — `uq_enrollments_active` 부분 UNIQUE (동일 사용자 active 신청 1개, CANCELLED 후 재신청 허용) / `payment_intents.idempotency_key` UNIQUE (결제 멱등성) / `lectures.enrolled_count` 는 활성 신청 수 비정규화 캐시 (비관 락 안에서 ±1, `@Version` 으로 stale write 차단).
+핵심 제약 — `uq_enrollments_active` 부분 UNIQUE (동일 사용자 active 신청 1개, CANCELLED 후 재신청 허용) / `payment_intents.idempotency_key` UNIQUE (결제 멱등성) / `lectures.enrolled_count` 는 활성 신청 수 비정규화 캐시 (신청·취소·상태 변경 모두 `Lecture` row 비관 락 안에서 ±1).
 
 ## 요구사항 해석 및 가정
 
@@ -155,7 +154,7 @@ erDiagram
 | **명시적 FSM** 을 도메인 메서드에 | 잘못된 전이를 도메인에서 차단 → `BusinessException` → RFC 7807 ProblemDetail | — |
 | **대기열은 만석일 때만 등록** | 자리가 남았는데 대기열에 넣으면 사용자 의도와 어긋남. 명시적 안내가 좋음 | 자리 가용성 체크 한 단계 추가 (`hasAvailableSeat`) |
 
-동시성 4-layer 방어 (비관 락 + `@Version` × 2 entity + 부분 UNIQUE + 멱등성) 의 상세 흐름·시퀀스 다이어그램은 [`docs/CONCURRENCY.md`](docs/CONCURRENCY.md).
+동시성 다층 방어 (`Lecture` 비관 락 + `Enrollment.@Version` + 부분 UNIQUE + 결제 멱등성) — 각 layer 가 다른 카테고리 race 를 1:1 로 막는 구성. 상세 흐름은 [`docs/CONCURRENCY.md`](docs/CONCURRENCY.md).
 
 ## 테스트 실행 방법
 

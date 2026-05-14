@@ -1,6 +1,6 @@
 # ERD 및 데이터 모델
 
-스키마 원본: [`V1__init.sql`](../src/main/resources/db/migration/V1__init.sql) · [`V2__enrollment_version.sql`](../src/main/resources/db/migration/V2__enrollment_version.sql).
+스키마 원본: [`V1__init.sql`](../src/main/resources/db/migration/V1__init.sql) · [`V2__enrollment_version.sql`](../src/main/resources/db/migration/V2__enrollment_version.sql) · [`V3__drop_lecture_version.sql`](../src/main/resources/db/migration/V3__drop_lecture_version.sql).
 
 ## ERD
 
@@ -29,7 +29,6 @@ erDiagram
         date start_date
         date end_date
         varchar status "DRAFT | OPEN | CLOSED"
-        bigint version "@Version"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -76,8 +75,8 @@ erDiagram
 활성 신청 수(PENDING+CONFIRMED)를 캐시. 목록 조회 시 매번 COUNT 하는 비용을 피하기 위함.
 
 정합성 보장:
-- 신청/취소 시 `Lecture` row 비관 락 안에서 ±1
-- `Lecture.@Version` + `Enrollment.@Version` 으로 stale write 차단
+- 신청/취소/`status` 변경 모두 `Lecture` row 비관 락 안에서 처리 (`findByIdForUpdate` 공통 경로)
+- `Enrollment.@Version` 으로 동일 enrollment 동시 cancel race 차단 (`Lecture` 락 단위가 enrollment 단위 stale write 는 못 잡기 때문)
 - `ConcurrencyTest` 가 `enrolled_count == COUNT(active)` sanity check
 
 ## 부분 UNIQUE 인덱스

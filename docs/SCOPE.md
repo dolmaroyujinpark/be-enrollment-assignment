@@ -38,7 +38,7 @@
 
 | 항목 | 명세와의 관계 | 코드 |
 |---|---|---|
-| 동시성 다층 방어 (비관 락 + `@Version` + 부분 UNIQUE 인덱스) | "동시 신청을 고려" 를 실제로 보장. 정원 경쟁뿐 아니라 같은 사용자의 동시 cancel race 도 차단 | `findByIdForUpdate`, `Lecture#version`, `Enrollment#version`, `uq_enrollments_active`, `GlobalExceptionHandler`(`OPTIMISTIC_LOCK_CONFLICT`/`DATA_INTEGRITY_VIOLATION`) |
+| 동시성 다층 방어 (비관 락 + `Enrollment.@Version` + 부분 UNIQUE 인덱스) | "동시 신청을 고려" 를 실제로 보장. 정원 race 는 `Lecture` 비관 락 하나로, 동일 enrollment 동시 cancel race 는 `Enrollment.@Version` 으로 분리 매핑 | `findByIdForUpdate` (apply/cancel/changeStatus 공용), `Enrollment#version`, `uq_enrollments_active`, `GlobalExceptionHandler`(`OPTIMISTIC_LOCK_CONFLICT`/`DATA_INTEGRITY_VIOLATION`) |
 | 결제 멱등성 (`Idempotency-Key` 헤더 + `payment_intents.idempotency_key` UNIQUE) | "결제 확정" 이 재시도에 안전해야 함 | `PaymentConfirmService#confirm`, `EnrollmentController#confirmPayment` |
 | 명시적 상태 머신 — 잘못된 전이를 도메인에서 차단 | 명세의 상태 모델이 깨지지 않게 | `Lecture#changeStatus`, `Enrollment#confirm/cancel`, `*Status#canTransitionTo` → `INVALID_*_STATUS_TRANSITION` 409 |
 | 동일 강의 중복 신청 방지 (취소 후 재신청은 허용) | 같은 사람이 같은 강의 두 번 신청 못 하게 | 부분 UNIQUE 인덱스 + `EnrollmentService#apply` 선검사(`DUPLICATE_ENROLLMENT`) |

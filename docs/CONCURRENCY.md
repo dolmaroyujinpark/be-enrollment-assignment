@@ -1,21 +1,21 @@
 # 동시성 제어
 
-명세 §3 "마지막 자리 동시 신청" 을 정확히 처리하기 위한 4-Layer 방어.
+명세 §3 "마지막 자리 동시 신청" 을 정확히 처리하기 위한 다층 방어. 각 layer 는 서로 다른 카테고리의 race 를 1:1 로 막습니다 — 감으로 쌓은 게 아니라 필요한 실패 모드만 매핑했습니다.
 
 ## 문제
 
 락 없이 구현하면 "읽고 → 검사하고 → 쓰는" 사이에 다른 트랜잭션이 끼어들어 정원 초과 발생. `enrolled_count <= capacity` CHECK 만으로는 부분만 막힘.
 
-## 4-Layer 방어
+## 다층 방어 (3 + 1)
 
-| Layer | 수단 | 막는 것 | 코드 |
-|---|---|---|---|
-| 1. 비관 락 | `Lecture` row `SELECT … FOR UPDATE` | 정원 갱신 직렬화 | `LectureRepository.findByIdForUpdate` |
-| 2. 낙관 락 | `Lecture.@Version` · `Enrollment.@Version` | 락 밖 경로의 stale write · 동일 enrollment 동시 cancel race | → `OPTIMISTIC_LOCK_CONFLICT 409` |
-| 3. 부분 UNIQUE | `uq_enrollments_active` | 동일 사용자 active 신청 중복 | → `DATA_INTEGRITY_VIOLATION 409` |
-| 4. 멱등성 | `payment_intents.idempotency_key UNIQUE` + 리플레이 경로 본인 검증 | 결제 중복 호출 · 키 추측 시 정보 노출 | `PaymentConfirmService.confirm` |
+| Layer | 수단 | 막는 카테고리 |
+|---|---|---|
+| 1. 비관 락 (`Lecture` row) | `SELECT … FOR UPDATE` — `LectureRepository.findByIdForUpdate` | **정원 race.** 신청·취소·`status` 변경 모두 같은 락 큐에서 직렬화. `Lecture` row 의 정합성은 이 락 하나로 처리 |
+| 2. 낙관 락 (`Enrollment.@Version`) | Hibernate `@Version` | **동일 사용자 동시 cancel race.** 비관 락이 `Lecture` 단위라 enrollment 단위 stale write 는 잡지 못함 → `OPTIMISTIC_LOCK_CONFLICT 409` |
+| 3. 부분 UNIQUE (`uq_enrollments_active`) | DB 인덱스 | **앱 외 경로(배치·수동 SQL) 의 중복 신청.** 락 안 선검사가 잡지만 DB 레벨 마지막 가드 → `DATA_INTEGRITY_VIOLATION 409` |
+| 4. 결제 멱등성 | `payment_intents.idempotency_key UNIQUE` + 리플레이 경로 본인 검증 | **결제 재시도·이중 청구·키 추측 시 정보 노출.** 동시성과 다른 차원의 문제 |
 
-1번이 정상 동작하면 2~3 은 발동할 일이 없으나, 락 범위 밖 경로·코드 버그를 DB 제약이 끝까지 막음.
+> **왜 `Lecture.@Version` 은 없는가** — `Lecture` row 의 모든 변경(`enrolled_count` ±1, `status` 전이) 이 `findByIdForUpdate` 를 거치도록 정리해서, 락 밖 stale write 경로 자체가 없습니다. 낙관 락은 코드 낭비라 제거.
 
 ## 흐름 — 신청 (`EnrollmentService.apply`)
 
@@ -60,7 +60,7 @@
 
 ## 비정규화 카운터 정합성
 
-`lectures.enrolled_count` 는 활성 신청 수 캐시. `Lecture` 비관 락 안에서 enrollment INSERT/상태변경과 같이 ±1, `@Version` 으로 stale write 차단. `ConcurrencyTest` 가 `enrolled_count == COUNT(active enrollments)` sanity check.
+`lectures.enrolled_count` 는 활성 신청 수 캐시. `Lecture` 비관 락 안에서 enrollment INSERT/상태변경과 같이 ±1. `ConcurrencyTest` 가 `enrolled_count == COUNT(active enrollments)` sanity check.
 
 ## 검증
 

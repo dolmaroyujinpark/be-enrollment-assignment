@@ -7,7 +7,7 @@
 | 영역 | AI 의 역할 | 검증·수정 |
 |---|---|---|
 | 도메인 모델 + 상태 전이 | 초안 생성 | FSM 전이·정원 가드 검토, 도메인 단위 테스트 |
-| 동시성 (비관 락·`@Version`·부분 UNIQUE·SKIP LOCKED) | 설계 후보 + 초안 | 락 순서·트랜잭션 경계 검토, `ConcurrencyTest` 검증 |
+| 동시성 (`Lecture` 비관 락 · `Enrollment.@Version` · 부분 UNIQUE · SKIP LOCKED) | 설계 후보 + 초안 | 락 순서·트랜잭션 경계 검토, layer 별 race 카테고리 분리, `ConcurrencyTest` 검증 |
 | 신청/결제/취소/대기열 서비스 | 구현 초안 | BR-1~11 매핑·예외 케이스, Mockito 단위 테스트 |
 | 공통 인프라 (`GlobalExceptionHandler`, `TraceIdFilter`, OpenAPI, logback) | 구현 초안 | HTTP 상태·MDC 정리 검토 |
 | Flyway 스키마, 시드 | 초안 생성 | CHECK 제약·부분 UNIQUE 검토, 실 DB 마이그레이션 확인 |
